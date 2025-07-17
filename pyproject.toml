@@ -1,0 +1,18 @@
+[tool.ruff]
+# Optional: same as black's line length
+line-length = 88
+fix = true
+
+[tool.ruff.lint]
+# Enable rules for isort, pydocstyle, etc.
+select = [
+ "E", "F", "I", "D", "N",       # animg
+ "UP", "SIM",                   # upgrades and simplifications
+ "C90",                         # mccabe complexity
+ "RUF"]                         # Ruff-specific rules
+
+[tool.ruff.format]
+# Enable black-style formatting
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
