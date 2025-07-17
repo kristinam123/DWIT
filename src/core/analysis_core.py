@@ -114,7 +114,7 @@ class AnalysisCore(QObject):
 
             # Initialize settings with mode-specific group
             settings_group = f"Analysismode_{self.analysis_mode}"
-            self.settings = QSettings("MeasurementCellApp", settings_group)
+            self.settings = QSettings("TEST", settings_group)
 
             # Load settings from persistent storage
             self.load_settings()
