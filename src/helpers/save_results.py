@@ -59,19 +59,32 @@ def save_results(
     raw_data = _create_raw_data_dict(times, extracted_data, coordinates, availability)
 
     # Save raw data with specific formatting
-    _save_dataframe_to_excel(raw_data, output_dir, "results_raw.xlsx")
+    # Save Excel file in parent of Output, prefix with folder name
+    parent_dir = os.path.dirname(output_dir.rstrip(os.sep))
+    folder_name = os.path.basename(parent_dir)
+    # Sanitize folder name for filename: remove invalid/special characters
+    import re
+    sanitized_folder_name = re.sub(r'[\\/:*?"<>|]', '_', folder_name)
+    # Warn if non-ASCII characters are present
+    if not all(ord(c) < 128 for c in sanitized_folder_name):
+        logger.warning(f"Folder name '{folder_name}' contains non-ASCII characters. "
+                       f"This may cause issues on some systems.")
+    excel_filename = f"{sanitized_folder_name}_results_raw.xlsx"
+    _save_dataframe_to_excel(raw_data, parent_dir, excel_filename)
 
-    # Process and filter data
-    filtered_data = _process_and_filter_data(raw_data, times, availability)
+    ################################# DISABLED ########################################
+    # # Process and filter data
+    # filtered_data = _process_and_filter_data(raw_data, times, availability)
 
-    # Save filtered data
-    _save_dataframe_to_excel(filtered_data, output_dir, "results_filtered.xlsx")
+    # # Save filtered data
+    # _save_dataframe_to_excel(filtered_data, output_dir, "results_filtered.xlsx")
 
-    # Generate plots
-    _generate_plots(raw_data, filtered_data, output_dir, availability)
+    # # Generate plots
+    # _generate_plots(raw_data, filtered_data, output_dir, availability)
 
-    # Analyze wobble
-    _analyze_wobble(output_dir=output_dir, times=times, result_lists=result_lists)
+    # # Analyze wobble
+    # _analyze_wobble(output_dir=output_dir, times=times, result_lists=result_lists)
+    ###################################################################################
 
 
 def _extract_data_from_results(result_lists, num_times):

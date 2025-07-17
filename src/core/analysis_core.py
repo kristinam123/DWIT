@@ -86,7 +86,7 @@ class AnalysisCore(QObject):
 
             # Initialize settings with mode-specific group
             settings_group = f"Analysismode_{self.analysis_mode}"
-            self.settings = QSettings("TEST", settings_group)
+            self.settings = QSettings("CellSettings", settings_group)
 
             # Load settings from persistent storage
             self.load_settings()
@@ -423,7 +423,7 @@ class AnalysisCore(QObject):
             self._fitting_mode = self.settings.value("fitting_mode", "Arc", type=str)
             self._polynom = self.settings.value("polynom", 3, type=int)
 
-            if self.analysis_mode in ["free_sedimentation", "channel"]:
+            if self.analysis_mode == "free_sedimentation":
                 self._y_img = self.settings.value("yImg", 300, type=int)
                 self._h_img = self.settings.value("hImg", 800, type=int)
                 self._x_img = self.settings.value("xImg", 0, type=int)
@@ -473,8 +473,8 @@ class AnalysisCore(QObject):
                     "threshold", 50, type=int
                 )  # Default to 50 for channel analysis
                 self._rotate_angle = self.settings.value(
-                    "rotateAngle", 43.3, type=float
-                )  # Default to 43.3 degrees for channel analysis
+                    "rotateAngle", 45.60, type=float
+                )  # Default to 45.60 degrees for channel analysis
 
             elif self.analysis_mode == "structured_packing":
                 self._y_img = self.settings.value("yImg", 900, type=int)
@@ -526,8 +526,8 @@ class AnalysisCore(QObject):
                     "threshold", 50, type=int
                 )  # Default to 50 for other modes
                 self._rotate_angle = self.settings.value(
-                    "rotateAngle", 47.40, type=float
-                )  # Default to 47.40 degrees for other modes
+                    "rotateAngle", 42.60, type=float
+                )  # Default to 42.60 degrees for other modes
 
             self.settings.endGroup()
 
@@ -707,6 +707,11 @@ class AnalysisCore(QObject):
         except UnicodeEncodeError:
             logger.warning(f"Special characters in folder path: {self._folder_path}")
             self.error_occurred.emit(
+                "The selected folder path contains special characters "
+                "(e.g., ü, ä, ö, ß). Please use a path with only standard "
+                "English letters and numbers."
+            )
+            logger.warning(
                 "The selected folder path contains special characters "
                 "(e.g., ü, ä, ö, ß). Please use a path with only standard "
                 "English letters and numbers."
@@ -2160,6 +2165,10 @@ class AnalysisCore(QObject):
             y1_right,
         )
         if largest_contour is None:
+            # Edge case: structured_packing + preview mode + no valid contour
+            # Show the original (middle) frame as result so something is displayed
+            if self.analysis_mode == "structured_packing":
+                result_images["result"] = result_images["original"].copy()
             return processed_img, [None], None
 
         # Process contour measurements and visualization

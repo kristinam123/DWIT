@@ -2,6 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Ignore generated output from test data
+resources/test_data/free_sedimentation (BuAc_d_large)/free_sedimentation (BuAc_d_large)_results_raw.xlsx
+resources/test_data/channel (BuAc_d_large)/channel (BuAc_d_large)_results_raw.xlsx
+resources/test_data/contact_wall (BuAc_d_large)/contact_wall (BuAc_d_large)_results_raw.xlsx
+resources/test_data/structured_packing (BuAc_d_large)/structured_packing (BuAc_d_large)_results_raw.xlsx
+
 # Distribution / packaging
 dist/
 build/

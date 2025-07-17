@@ -2293,8 +2293,8 @@ class AnalysisGUI(QWidget):
             for folder in folders:
                 if folder and folder not in self.controller.folder_paths:
                     self.controller.add_folder_path(folder)
-                    # Create item with shortened display text
-                    item = QListWidgetItem(os.path.basename(folder))
+                    # Display the full path for consistency
+                    item = QListWidgetItem(folder)
                     item.setData(Qt.UserRole, folder)
                     self.folder_list.addItem(item)
         else:
