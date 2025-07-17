@@ -1,32 +1,4 @@
-"""Analysis core functionality for droplet and experiment analysis in MesszelleApp.
-
-CRITICAL REFACTORING IMPACT SUMMARY:
-This new codebase has significant functionality losses compared to old system:
-
-HIGH-RISK LOSSES (require immediate attention):
-1. Contact angle calculation: Only 1 method (arc) vs 4 methods previously
-   - Missing: tangent (primary), ellipse, polynomial methods
-   - Lost: Surface type classification (hydrophobic/hydrophilic)
-   - Lost: Sophisticated wetting scenario analysis
-2. Area measurements: Completely missing droplet area calculation
-   - Lost: Green pixel detection and sum_distance_y accumulation
-   - Lost: Volume estimation and size correlation capabilities
-3. Edge case handling: Simplified arc method vs complex case analysis
-   - Lost: 5-case wetting scenario intelligence from tangent method
-   - Lost: Movement pattern analysis and angle_help logic
-
-MEDIUM-RISK CHANGES (require user adaptation):
-1. Language: German → English (plot names, messages, Excel columns)
-2. Plot system: Fixed 5-plot → Dynamic availability-based plotting
-3. Excel structure: Single file → Multiple specialized files
-4. Workflow: User retraining required for new file organization
-
-RECOMMENDATIONS:
-- Restore tangent method as primary calculation (highest priority)
-- Implement area calculation for measurement completeness
-- Add method selection logic for robust analysis
-- Consider legacy compatibility mode for workflow transition
-"""
+"""Analysis core functionality for droplet and experiment analysis in MesszelleApp."""
 
 import glob
 import math
