@@ -3,7 +3,7 @@
 import gc
 import sys
 import traceback
-# hallo
+
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import QApplication
 
