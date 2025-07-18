@@ -72,19 +72,20 @@ class ColoredLogHandler(logging.Handler):
         self.logging_manager = logging_manager
 
     def emit(self, record):
-        """Emit a log record to the overlay."""
-        if self.log_overlay:
-            try:
-                message = self.format(record)
-                self.log_overlay.append_log_message(message, record.levelname)
-
-                # Update highest level tracking
-                if self.logging_manager:
-                    self.logging_manager.update_highest_level(record.levelname)
-
-            except Exception:
-                # Avoid recursive logging errors
-                pass
+        """Emit a log record to the overlay only if the log type is enabled."""
+        if not self.log_overlay or not self.logging_manager:
+            return
+        # Check if the log type is enabled before emitting
+        if not self.logging_manager.is_level_enabled(record.levelname):
+            return
+        try:
+            message = self.format(record)
+            self.log_overlay.append_log_message(message, record.levelname)
+            # Update highest level tracking
+            self.logging_manager.update_highest_level(record.levelname)
+        except Exception:
+            # Avoid recursive logging errors
+            pass
 
     def set_log_overlay(self, log_overlay):
         """Set the log overlay reference."""
@@ -160,8 +161,18 @@ class LoggingManager(QObject):
         # Add our custom handler first (highest priority)
         root_logger.addHandler(self.custom_handler)
 
-        # Also add a console handler for terminal output
-        console_handler = logging.StreamHandler(sys.__stdout__)
+        # Also add a console handler for terminal output with filtering
+        class ConsoleLogHandler(logging.StreamHandler):
+            def __init__(self, logging_manager, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.logging_manager = logging_manager
+            def emit(self, record):
+                # Suppress log types that are disabled
+                if not self.logging_manager.is_level_enabled(record.levelname):
+                    return
+                super().emit(record)
+        
+        console_handler = ConsoleLogHandler(self, sys.__stdout__)
         console_handler.setFormatter(TerminalStyleFormatter())
         console_handler.setLevel(logging.DEBUG)  # Show debug and higher to terminal
         root_logger.addHandler(console_handler)
@@ -183,10 +194,6 @@ class LoggingManager(QObject):
             )  # Only warnings and errors from libraries
             lib_logger.addHandler(self.custom_handler)
             lib_logger.propagate = True  # Ensure they propagate to root logger
-
-        # Verify setup worked by logging a test message
-        test_logger = logging.getLogger("logging_manager_init_test")
-        test_logger.info("Logging manager successfully initialized and configured")
 
     def initialize_settings(self):
         """Initialize settings after QApplication is properly set up."""

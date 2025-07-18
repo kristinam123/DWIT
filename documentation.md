@@ -355,6 +355,7 @@ python build_exe.py
 MesszelleApp is developed and maintained by the team at RWTH AVT.FVT.
 
 - **GitLab:** [arraca22](https://git.rwth-aachen.de/arraca22)
+- **GitHub:** [arraca22](https://github.com/arraca22)
 - For questions, open an issue or reach out via GitLab.
 
 ---

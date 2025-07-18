@@ -69,8 +69,6 @@ if __name__ == "__main__":
     gc.set_threshold(700, 10, 10)  # More frequent collection
 
     try:
-        logger.info("Starting MesszelleApp with enhanced error handling...")
-
         app = QApplication(sys.argv)
         # Set application metadata for QSettings
         app.setOrganizationName("MeasurementCellApp")
@@ -78,7 +76,6 @@ if __name__ == "__main__":
 
         # Set up memory management
         gc_timer = setup_memory_management()
-        logger.info("Memory management initialized")
 
         # Initialize logging manager settings after QApplication is properly set up
         logging_manager.initialize_settings()

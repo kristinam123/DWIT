@@ -199,6 +199,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 ## 💬 Contact
 
 - **GitLab:** [arraca22](https://git.rwth-aachen.de/arraca22)
+- **GitHub:** [arraca22](https://github.com/arraca22)
 - For questions, open an issue or reach out via GitLab.
 
 ---
