@@ -29,7 +29,7 @@ class SmoothOverlay(QFrame):
         self.parent_widget = parent
         self._hide_connection_active = False  # Track connection state
 
-        logger.info(f"Initializing {self.__class__.__name__} overlay")
+        logger.debug(f"Initializing {self.__class__.__name__} overlay")
 
         # Use the centralized logger instead of creating a separate one
         self.logger = logger
@@ -72,6 +72,7 @@ class SmoothOverlay(QFrame):
 
     def show_overlay(self):
         """Show overlay with smooth animation."""
+        logger.debug(f"Showing overlay: {self.__class__.__name__}")
         try:
             # Ensure clean state before starting new animation
             self._ensure_clean_animation_state()
@@ -94,6 +95,7 @@ class SmoothOverlay(QFrame):
 
     def hide_overlay(self):
         """Hide overlay with smooth animation."""
+        logger.debug(f"Hiding overlay: {self.__class__.__name__}")
         try:
             # Ensure clean state before starting new animation
             self._ensure_clean_animation_state()
@@ -432,6 +434,7 @@ class LogOverlay(SmoothOverlay):
 
     def _on_filter_changed(self, level: str, enabled: bool):
         """Handle filter checkbox changes."""
+        logger.debug(f"LogOverlay filter changed: {level} set to {enabled}")
         if self.logging_manager:
             self.logging_manager.set_level_enabled(level, enabled)
             # Re-display all messages with new filter settings
@@ -516,6 +519,7 @@ class LogOverlay(SmoothOverlay):
 
     def _refresh_display(self):
         """Refresh the display to show all messages."""
+        logger.debug("Refreshing LogOverlay display.")
         # Clear current display
         self.log_text.clear()
 
@@ -537,6 +541,7 @@ class LogOverlay(SmoothOverlay):
         """Update overlay geometry to stick to bottom of parent."""
         if not self.parent_widget:
             return
+        logger.debug("Updating LogOverlay geometry.")
 
         parent_rect = self.parent_widget.rect()
         height = 350  # Reduced height since header is removed

@@ -59,7 +59,7 @@ class CameraCore(QObject):
     def __init__(self):
         """Initialize the CameraCore instance."""
         super().__init__()
-        logger.info("Initializing CameraCore")
+        logger.debug("Initializing CameraCore")
 
         # Camera parameter limits
         self.min_exp = 1000
@@ -160,7 +160,7 @@ class CameraCore(QObject):
 
     def initialize_camera(self) -> None:
         """Initialize the camera and get handles."""
-        logger.info("Initializing camera")
+        logger.debug("Initializing camera")
         try:
             XsCamera.LoadLibrary(CAMERA_LIB_PATH)
             self.cameras_found = list(
@@ -173,18 +173,18 @@ class CameraCore(QObject):
                 return
 
             camera_id = self.cameras_found[0].nCameraId
-            logger.info(f"Using camera ID: {camera_id}")
+            logger.debug(f"Using camera ID: {camera_id}")
 
             # Pre-configure camera
             XsCamera.XsPreConfigCamera(camera_id, XS_PRE_PARAM.XSPP_PCIX_DMASIZE, 4096)
 
             # Open camera
             self.camera_handle = XsCamera.XsOpenCamera(camera_id)
-            logger.info("Camera opened successfully")
+            logger.debug("Camera opened successfully")
 
             # Get initial ROI dimensions
             self._update_roi_dimensions()
-            logger.info("Camera initialization completed successfully")
+            logger.debug("Camera initialization completed successfully")
 
         except Exception as e:
             error_msg = f"Camera initialization error: {e!s}"

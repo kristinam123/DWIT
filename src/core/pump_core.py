@@ -31,7 +31,7 @@ class PumpCore(QObject):
 
     def __init__(self):
         """Initialize the PumpCore instance."""
-        logger.info("Initializing PumpCore instance")
+        logger.debug("Initializing PumpCore instance")
         super().__init__()
 
         try:
@@ -45,7 +45,7 @@ class PumpCore(QObject):
                 self._on_port_status_changed
             )
 
-            logger.info("PumpCore initialization completed successfully")
+            logger.debug("PumpCore initialization completed successfully")
 
         except Exception as e:
             logger.error(f"Error during PumpCore initialization: {e}")

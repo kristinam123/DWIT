@@ -79,7 +79,7 @@ class AnalysisCore(QObject):
 
         """
         super().__init__()
-        logger.info(f"Initializing AnalysisCore with mode: {analysis_mode}")
+        logger.debug(f"Initializing AnalysisCore with mode: {analysis_mode}")
 
         try:
             self.analysis_mode = analysis_mode
@@ -97,7 +97,7 @@ class AnalysisCore(QObject):
                 "channel",
                 "structured_packing",
             ]:
-                logger.info(
+                logger.debug(
                     f"Analysis mode '{self.analysis_mode}' detected - "
                     f"forcing rotation and baseline to 0"
                 )
@@ -147,7 +147,7 @@ class AnalysisCore(QObject):
                 self._folder_path + "/Output" if self._folder_path else ""
             )
 
-            logger.info(
+            logger.debug(
                 f"AnalysisCore initialization completed successfully for mode: "
                 f"{analysis_mode}"
             )

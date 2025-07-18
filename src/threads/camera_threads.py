@@ -23,7 +23,7 @@ class StoppableThread(QObject):
         self._mutex.lock()
         self._stop_requested = True
         self._mutex.unlock()
-        logger.info("Thread stop requested")
+        logger.debug("Thread stop requested")
 
     def clear_stop(self):
         """Clear the stop request flag for the thread."""
@@ -45,14 +45,15 @@ class LiveFeedThread(QThread):
     def __init__(self, camera_core):
         """Initialize the LiveFeedThread with camera_core."""
         super().__init__()
-        logger.info("Initializing LiveFeedThread")
+        logger.debug("Initializing LiveFeedThread")
 
         self.camera_core = camera_core
         self.stopper = StoppableThread()
 
     def run(self):
         """Execute the live feed loop in the thread."""
-        logger.info("Starting live feed thread execution")
+        logger.info("LiveFeedThread started")
+        logger.debug("Starting live feed thread execution")
 
         try:
             frame_count = 0
@@ -60,15 +61,17 @@ class LiveFeedThread(QThread):
                 frame_count += 1
 
                 if self.stopper.is_stop_requested():
-                    logger.info("Stop requested for live feed thread")
+                    logger.debug("Stop requested for live feed thread")
                     break
 
-            logger.info(
+            logger.debug(
                 f"Live feed thread completed after processing {frame_count} frames"
             )
 
         except Exception as e:
-            logger.error(f"Error in live feed thread: {e}")
+            logger.error(f"Exception in live feed thread: {e}")
+        finally:
+            logger.info("LiveFeedThread finished")
 
 
 class RecordingThread(QThread):
@@ -77,21 +80,24 @@ class RecordingThread(QThread):
     def __init__(self, camera_core):
         """Initialize the RecordingThread with camera_core."""
         super().__init__()
-        logger.info("Initializing RecordingThread")
+        logger.debug("Initializing RecordingThread")
 
         self.camera_core = camera_core
         self.stopper = StoppableThread()
 
     def run(self):
         """Execute the recording loop in the thread."""
-        logger.info("Starting camera recording thread execution")
+        logger.info("RecordingThread started")
+        logger.debug("Starting recording thread execution")
 
         try:
             self.camera_core.record_feed_loop(self.stopper)
-            logger.info("Camera recording thread completed successfully")
+            logger.debug("Camera recording thread completed successfully")
 
         except Exception as e:
-            logger.error(f"Error in camera recording thread: {e}")
+            logger.error(f"Exception in recording thread: {e}")
+        finally:
+            logger.info("RecordingThread finished")
 
 
 # Explicitly mark thread run() methods as used for static analysis

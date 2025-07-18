@@ -130,7 +130,7 @@ class BatchProcessingWorker(QObject):
         self.is_paused = False
         self.should_stop = False
 
-        logger.info(
+        logger.debug(
             f"BatchProcessingWorker initialized with {len(folder_paths)} folders"
         )
 

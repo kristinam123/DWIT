@@ -24,7 +24,7 @@ class CameraWindow(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         """Initialize the CameraWindow with optional parent."""
         super().__init__(parent)
-        logger.info("Initializing CameraWindow")
+        logger.debug("Initializing CameraWindow")
 
         self.setWindowTitle("Camera Control")
 
@@ -45,7 +45,7 @@ class CameraWindow(QWidget):
             self.gui = CameraGUI(self, self.controller)
 
             main_layout.addWidget(self.gui)
-            logger.info("CameraWindow UI components initialized and added to layout")
+            logger.debug("CameraWindow UI components initialized and added to layout")
 
         except Exception as e:
             logger.error(f"Error creating camera GUI: {e}")
@@ -59,12 +59,12 @@ class CameraWindow(QWidget):
             event: Close event to handle.
 
         """
-        logger.info("CameraWindow close event triggered")
+        logger.debug("CameraWindow close event triggered")
 
         # Safely shut down camera before closing
         try:
             self.controller.close()
-            logger.info("Camera controller closed successfully")
+            logger.debug("Camera controller closed successfully")
 
         except Exception as e:
             logger.error(f"Error closing camera: {e}")
@@ -72,20 +72,20 @@ class CameraWindow(QWidget):
 
 
 if __name__ == "__main__":
-    logger.info("Starting CameraWindow standalone application")
+    logger.debug("Starting CameraWindow standalone application")
 
     app = QApplication(sys.argv)
 
     try:
         window = CameraWindow()
-        logger.info("CameraWindow created successfully")
+        logger.debug("CameraWindow created successfully")
 
         window.setWindowState(Qt.WindowMaximized)
 
         window.show()
-        logger.info("CameraWindow displayed")
+        logger.debug("CameraWindow displayed")
 
-        logger.info("Starting Qt event loop for camera application")
+        logger.debug("Starting Qt event loop for camera application")
         sys.exit(app.exec())
 
     except Exception as e:

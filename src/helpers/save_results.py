@@ -38,25 +38,30 @@ def save_results(
         result_lists: Dictionary containing measurement results
 
     """
-    logger.info(f"Saving results to directory: {output_dir}")
+    logger.debug(f"save_results called with times: {len(times)}, result_lists keys: {list(result_lists.keys())}")
 
     # Prepare output directory
     if not _prepare_output_directory(output_dir):
-        return  # Exit if directory creation failed
+        logger.error(f"Failed to create or access output directory: {output_dir}")
+        return
 
     # Extract and process data from result_lists
     extracted_data = _extract_data_from_results(result_lists, len(times))
+    logger.debug(f"Extracted data keys: {list(extracted_data.keys())}")
 
     # Check for data availability
     availability = _check_data_availability(extracted_data)
+    logger.debug(f"Data availability: {availability}")
 
     # Extract center coordinates
     coordinates = _extract_center_coordinates(
         extracted_data["centers"], extracted_data["centers_mm"]
     )
+    logger.debug(f"Extracted coordinates: {coordinates}")
 
     # Create raw data dictionary
     raw_data = _create_raw_data_dict(times, extracted_data, coordinates, availability)
+    logger.debug(f"Raw data keys: {list(raw_data.keys())}")
 
     # Save raw data with specific formatting
     # Save Excel file in parent of Output, prefix with folder name

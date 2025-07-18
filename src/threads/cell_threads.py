@@ -23,7 +23,7 @@ class AutomatisationThread(QThread):
     def __init__(self, controller):
         """Initialize the AutomatisationThread with controller."""
         super().__init__()
-        logger.info("Initializing AutomatisationThread")
+        logger.debug("Initializing AutomatisationThread")
 
         self.controller = controller
 
@@ -32,7 +32,8 @@ class AutomatisationThread(QThread):
 
     def run(self):
         """Execute the automation process in the thread."""
-        logger.info("Starting automation process in thread")
+        logger.info("AutomatisationThread started")
+        logger.debug("Starting automation process in thread")
 
         # Explicitly mark thread run() method as used for static analysis
         # This method is automatically called by Qt's threading system
@@ -41,12 +42,14 @@ class AutomatisationThread(QThread):
 
         try:
             result = self.controller._automatisation()
-            logger.info(f"Automation completed successfully with result: {result}")
+            logger.debug(f"Automation completed successfully with result: {result}")
             self.prompt_signal.emit(result)
         except Exception as e:
             logger.error(f"Automation error occurred: {e!s}")
             error_message = f"Automation error: {e!s}"
             self.prompt_signal.emit(error_message)
+        finally:
+            logger.info("AutomatisationThread finished")
 
 
 class StopEvent(QObject):
@@ -66,7 +69,7 @@ class StopEvent(QObject):
         self._flag = True
         self._condition.wakeAll()
         self._mutex.unlock()
-        logger.info("StopEvent flag set, all waiting threads notified")
+        logger.debug("StopEvent flag set, all waiting threads notified")
 
     def clear(self):
         """Clear the stop event flag."""

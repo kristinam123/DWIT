@@ -28,10 +28,11 @@ class SharedPortManager(QObject):
 
     def __init__(self):
         """Initialize the SharedPortManager instance."""
+        logger.info("SharedPortManager instance created")
         if self._initialized:
             return
 
-        logger.info("Initializing SharedPortManager")
+        logger.debug("Initializing SharedPortManager")
         super().__init__()
         self._initialized = True
         self.port_manager = PortManager()
@@ -62,7 +63,7 @@ class SharedPortManager(QObject):
             # Add the actual ports
             ports.extend(all_ports)
 
-            logger.info(
+            logger.debug(
                 "Available ports list created with %d entries (include_empty=%s)",
                 len(ports),
                 include_empty,
@@ -193,7 +194,7 @@ class PortManager:
 
     def __init__(self):
         """Initialize the port manager."""
-        logger.info("Initializing PortManager")
+        logger.debug("Initializing PortManager")
 
     def get_ports(self):
         """Get a list of available serial ports.

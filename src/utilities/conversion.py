@@ -41,13 +41,13 @@ def convert_to_float_list(values: list[Any]) -> list[float]:
                 non_numeric_count += 1
 
         if non_numeric_count > 0:
-            logger.info(
+            logger.debug(
                 f"Conversion completed: {len(values) - non_numeric_count}/"
                 f"{len(values)} values converted successfully, "
                 f"{non_numeric_count} converted to NaN"
             )
         else:
-            logger.info(
+            logger.debug(
                 f"Conversion completed successfully: all {len(values)} values "
                 f"converted to floats"
             )

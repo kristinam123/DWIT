@@ -54,7 +54,7 @@ class AnalysisGUI(QWidget):
 
     def __init__(self, parent: QWidget, controller: Any):
         """Initialize the AnalysisGUI with parent and controller."""
-        logger.info("Initializing AnalysisGUI")
+        logger.debug("Initializing AnalysisGUI")
 
         try:
             super().__init__(parent)

@@ -35,7 +35,7 @@ class PumpGUI(QWidget):
 
     def __init__(self, parent, controller):
         """Initialize the PumpGUI with parent and controller."""
-        logger.info("Initializing PumpGUI")
+        logger.debug("Initializing PumpGUI")
         super().__init__(parent)
         self.controller = controller
         self.widget_state = True
@@ -50,7 +50,7 @@ class PumpGUI(QWidget):
         self._setup_ui()
 
         QTimer.singleShot(500, self._safe_populate_ports)
-        logger.info("PumpGUI initialization completed")
+        logger.debug("PumpGUI initialization completed")
 
         # Create but don't start timer - disable automatic refreshes for stability
         self.port_refresh_timer = QTimer(self)
@@ -373,6 +373,7 @@ class PumpGUI(QWidget):
             return self.setpoint_spinbox.value() * LPH_TO_HZ_RATIO
 
     def update_setpoint(self):
+        logger.info(f"User clicked 'Apply' button. Requested setpoint: {self.setpoint_spinbox.value()} {self.current_unit}")
         """Apply the flow rate setpoint to the pump."""
         try:
             # Always convert to L/h for the controller
@@ -386,6 +387,7 @@ class PumpGUI(QWidget):
             pass
 
     def stop(self):
+        logger.info("User clicked 'Stop' button. Stopping pump (setting flow rate to zero).")
         """Stop the pump by setting flow rate to zero."""
         logger.info("Stopping pump by setting flow rate to zero")
         self.setpoint_spinbox.setValue(0)

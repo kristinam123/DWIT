@@ -28,7 +28,7 @@ class CameraGUI(QWidget):
 
     def __init__(self, parent, controller):
         """Initialize the CameraGUI with parent and controller."""
-        logger.info("Initializing CameraGUI")
+        logger.debug("Initializing CameraGUI")
         super().__init__(parent)
         self.controller = controller
         self.widget_state = True
@@ -63,7 +63,7 @@ class CameraGUI(QWidget):
         self.controller.recording_state_changed.connect(self.update_record_button_state)
         self.controller.fps_changed.connect(self._update_fps_from_controller)
         self.controller.exp_changed.connect(self._update_exp_from_controller)
-        logger.info("CameraGUI initialization completed")
+        logger.debug("CameraGUI initialization completed")
 
     def _create_widgets(self):
         """Create and arrange all UI elements."""

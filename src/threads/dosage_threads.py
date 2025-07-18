@@ -17,7 +17,7 @@ class DosageButtonThread(QThread):
     def __init__(self, controller, button_type, steps_value=None, time_value=None):
         """Initialize the DosageButtonThread with controller and button parameters."""
         super().__init__()
-        logger.info(f"Initializing DosageButtonThread for button type: {button_type}")
+        logger.debug(f"Initializing DosageButtonThread for button type: {button_type}")
 
         self.controller = controller
         self.button_type = button_type
@@ -26,7 +26,7 @@ class DosageButtonThread(QThread):
 
         # Connect thread finished signal for cleanup logging
         self.finished.connect(
-            lambda: logger.info(f"DosageButtonThread for {button_type} completed")
+            lambda: logger.debug(f"DosageButtonThread for {button_type} completed")
         )
 
         # Initialize current_steps_left for tracking injection progress
@@ -35,18 +35,18 @@ class DosageButtonThread(QThread):
     def run(self):
         """Execute the dosage operation based on button type."""
         try:
-            logger.info(f"Starting dosage operation: {self.button_type}")
+            logger.debug(f"Starting dosage operation: {self.button_type}")
 
             if self.button_type == "Init.":
                 self.controller.initialise()
                 self.controller.resolution(address="a", full="1")
                 self.steps_left_update.emit("0")
-                logger.info("Dosage system initialization completed")
+                logger.debug("Dosage system initialization completed")
 
             elif self.button_type == "Refill":
                 result = self.controller.refill(address="a", steps="2085")
                 if result != 0:
-                    logger.info("Refill operation completed successfully")
+                    logger.debug("Refill operation completed successfully")
                     self.steps_left_update.emit("2085")
                 else:
                     logger.warning("Refill operation returned zero steps")
@@ -68,7 +68,7 @@ class DosageButtonThread(QThread):
 
                         if inject != 0:
                             new_steps_left = str(steps_left - steps)
-                            logger.info(
+                            logger.debug(
                                 f"Injection completed. Steps left: {new_steps_left}"
                             )
                             self.steps_left_update.emit(new_steps_left)

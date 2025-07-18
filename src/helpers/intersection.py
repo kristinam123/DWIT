@@ -32,10 +32,7 @@ def find_intersection_points(
                  shifted_points, shifted_x, shifted_y)
 
     """
-    logger.info(
-        f"Finding intersection points: y1_left={y1_left}, y1_right={y1_right}, "
-        f"threshold={threshold}, pixel={pixel}"
-    )
+    logger.debug(f"Params: y1_left={y1_left}, y1_right={y1_right}, threshold={threshold}, pixel={pixel}, contours_provided={contours is not None}")
 
     # Validate input and setup visualization
     vis_img, baseline_y, dimensions = _setup_intersection_analysis(
@@ -80,7 +77,7 @@ def find_intersection_points(
                 cnt = contours[0]
         elif hasattr(contours, "__len__") and len(contours) > 0:
             cnt = contours[0]
-    logger.info(
+    logger.debug(
         f"Intersection analysis complete: "
         f"{len(intersection_points)} intersection points, "
         f"{len(shifted_points)} shifted points"

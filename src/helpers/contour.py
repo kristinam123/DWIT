@@ -47,7 +47,7 @@ def _calculate_center_point(cnt, h, w, line_y, pixel):
     ]
     if cx is not None and cy is not None and pixel > 0:
         center_point_mm = [cx / pixel, cy / pixel]
-        logger.info(f"Center point: {center_point_px} px = {center_point_mm} mm")
+        logger.debug(f"Center point: {center_point_px} px = {center_point_mm} mm")
     else:
         center_point_mm = [float("nan"), float("nan")]
         logger.warning("Could not calculate valid center point in mm")
@@ -268,7 +268,7 @@ def calculate_drop_area(
         Center point in pixels and mm
 
     """
-    logger.info(f"Calculating drop area for image {q}")
+    logger.debug(f"Params: y1_left={y1_left}, y1_right={y1_right}, intersection_points={intersection_points}, pixel={pixel}")
 
     # Create a copy of the image for visualization
     img_copy = img.copy() if img is not None else None
@@ -373,6 +373,8 @@ def process_contour(
         tuple of (x_mean, x_left_cnt, y_left_cnt, x_right_cnt, y_right_cnt)
 
     """
+    logger.debug(f"Params: contour_len={len(contour) if hasattr(contour, '__len__') else 'unknown'}, line_y={line_y}")
+
     # Handle missing contour
     if contour is None or len(contour) == 0:
         logger.warning("No contour provided for processing")

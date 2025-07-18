@@ -22,8 +22,6 @@ class ROISelector(QDialog):
         """Initialize the ROISelector dialog."""
         super().__init__(parent)
 
-        logger.info("Initializing ROISelector dialog")
-
         # Set up window properties like PreviewDialog
         self.setWindowTitle("Select Region of Interest")
         self.setWindowFlags(
@@ -49,6 +47,7 @@ class ROISelector(QDialog):
 
         # Load and process image
         if image_path:
+            logger.info(f"Loading and rotating image for ROI selection: {image_path}")
             self.load_and_rotate_image()
         else:
             logger.warning(

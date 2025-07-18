@@ -33,7 +33,7 @@ class CellGUI(QWidget):
 
     def __init__(self, parent, controller):
         """Initialize the CellGUI with parent and controller."""
-        logger.info("Initializing CellGUI")
+        logger.debug("Initializing CellGUI")
         super().__init__(parent)
         self.controller = controller
         self.folder_path = controller.folder_path
@@ -46,7 +46,7 @@ class CellGUI(QWidget):
         logging_manager.set_log_overlay(self.log_overlay)
         self.log_overlay.set_logging_manager(logging_manager)
 
-        logger.info("CellGUI initialized successfully")
+        logger.debug("CellGUI initialized successfully")
 
         self._create_widgets()
 

@@ -18,7 +18,7 @@ class DosageWindow(QMainWindow):
     def __init__(self, parent=None):
         """Initialize the DosageWindow."""
         super().__init__(parent)
-        logger.info("Initializing DosageWindow")
+        logger.debug("Initializing DosageWindow")
 
         self.setWindowTitle("Dosage Control")
 
@@ -37,7 +37,7 @@ class DosageWindow(QMainWindow):
             self.gui = DosageGUI(central_widget, self.controller)
 
             layout.addWidget(self.gui)
-            logger.info("DosageWindow UI components initialized and added to layout")
+            logger.debug("DosageWindow UI components initialized and added to layout")
 
         except Exception as e:
             logger.error(f"Error creating dosage controller or GUI: {e}")
@@ -45,18 +45,18 @@ class DosageWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    logger.info("Starting DosageWindow standalone application")
+    logger.debug("Starting DosageWindow standalone application")
 
     app = QApplication(sys.argv)
 
     try:
         window = DosageWindow()
-        logger.info("DosageWindow created successfully")
+        logger.debug("DosageWindow created successfully")
 
         window.show()
-        logger.info("DosageWindow displayed")
+        logger.debug("DosageWindow displayed")
 
-        logger.info("Starting Qt event loop for dosage application")
+        logger.debug("Starting Qt event loop for dosage application")
         sys.exit(app.exec())
 
     except Exception as e:

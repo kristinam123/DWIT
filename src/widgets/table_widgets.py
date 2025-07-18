@@ -34,7 +34,7 @@ class TableGUI(QWidget):
 
     def __init__(self, parent, controller):
         """Initialize the TableGUI with parent and controller."""
-        logger.info("Initializing TableGUI")
+        logger.debug("Initializing TableGUI")
         super().__init__(parent)
         self.controller = controller
         self.results = None
@@ -49,7 +49,7 @@ class TableGUI(QWidget):
             and self.controller.counter_flows is not None
             and self.controller.tilts is not None
         ):
-            logger.info("Loading existing experiment data")
+            logger.debug("Loading existing experiment data")
             self.update_table()
 
     def _create_widgets(self):

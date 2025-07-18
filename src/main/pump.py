@@ -18,7 +18,7 @@ class PumpWindow(QMainWindow):
     def __init__(self, parent=None):
         """Initialize the PumpWindow."""
         super().__init__(parent)
-        logger.info("Initializing PumpWindow")
+        logger.debug("Initializing PumpWindow")
 
         self.setWindowTitle("Pump Control")
 
@@ -37,7 +37,7 @@ class PumpWindow(QMainWindow):
             self.gui = PumpGUI(self, self.controller)
 
             layout.addWidget(self.gui)
-            logger.info("PumpWindow UI components initialized and added to layout")
+            logger.debug("PumpWindow UI components initialized and added to layout")
 
         except Exception as e:
             logger.error(f"Error creating pump controller or GUI: {e}")
@@ -45,18 +45,18 @@ class PumpWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    logger.info("Starting PumpWindow standalone application")
+    logger.debug("Starting PumpWindow standalone application")
 
     app = QApplication(sys.argv)
 
     try:
         window = PumpWindow()
-        logger.info("PumpWindow created successfully")
+        logger.debug("PumpWindow created successfully")
 
         window.show()
-        logger.info("PumpWindow displayed")
+        logger.debug("PumpWindow displayed")
 
-        logger.info("Starting Qt event loop for pump application")
+        logger.debug("Starting Qt event loop for pump application")
         sys.exit(app.exec())
 
     except Exception as e:

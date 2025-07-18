@@ -87,8 +87,10 @@ def detect_vertical_line_contact(
         with each line
 
     """
+    logger.debug(f"Params: vertical_left={vertical_left}, vertical_right={vertical_right}, contact_threshold={contact_threshold}")
     contour_points = _prepare_contour_points(contour)
     if contour_points is None:
+        logger.warning("Contour points could not be prepared for contact detection")
         return False, False
 
     try:
@@ -110,6 +112,7 @@ def detect_vertical_line_contact(
         logger.info(
             f"Contact detection results: left={left_contact}, right={right_contact}"
         )
+        logger.debug(f"Contour points count: {len(contour_points)}")
         return left_contact, right_contact
 
     except Exception as e:

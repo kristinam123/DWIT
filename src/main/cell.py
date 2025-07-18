@@ -42,7 +42,7 @@ class CellWindow(QMainWindow):
     def __init__(self):
         """Initialize the CellWindow."""
         super().__init__()
-        logger.info("Initializing CellWindow (Main Application Window)")
+        logger.debug("Initializing CellWindow (Main Application Window)")
 
         self.setWindowTitle("Measurement Cell Control Center")
 
@@ -71,11 +71,11 @@ class CellWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.gui)
-        logger.info("CellWindow UI components initialized and added to layout")
+        logger.debug("CellWindow UI components initialized and added to layout")
 
 
 if __name__ == "__main__":
-    logger.info("Starting CellWindow standalone application (Main Entry Point)")
+    logger.debug("Starting CellWindow standalone application (Main Entry Point)")
 
     app = QApplication(sys.argv)
 
@@ -88,12 +88,12 @@ if __name__ == "__main__":
 
     try:
         window = CellWindow()
-        logger.info("CellWindow (main application) created successfully")
+        logger.debug("CellWindow (main application) created successfully")
 
         window.show()
-        logger.info("CellWindow (main application) displayed")
+        logger.debug("CellWindow (main application) displayed")
 
-        logger.info("Starting Qt event loop for main application")
+        logger.debug("Starting Qt event loop for main application")
         sys.exit(app.exec())
 
     except Exception as e:

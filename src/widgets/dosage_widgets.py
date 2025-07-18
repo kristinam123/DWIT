@@ -29,7 +29,7 @@ class DosageGUI(QWidget):
 
     def __init__(self, parent, controller):
         """Initialize the DosageGUI with parent and controller."""
-        logger.info("Initializing DosageGUI")
+        logger.debug("Initializing DosageGUI")
         super().__init__(parent)
         self.controller = controller
         self.max_steps = 2085  # Maximum steps for progress calculation
@@ -50,7 +50,7 @@ class DosageGUI(QWidget):
 
         # Thread reference
         self.button_thread = None
-        logger.info("DosageGUI initialization completed")
+        logger.debug("DosageGUI initialization completed")
 
     def _safe_populate_ports(self):
         """Safely populate ports with proper error handling."""
@@ -59,9 +59,10 @@ class DosageGUI(QWidget):
 
             # Check if no port is initially selected and disable widgets if needed
             if not self.dosage_port_combobox.currentText():
+                logger.warning("No port selected during population; disabling widgets.")
                 self._toggle_widget_state(enabled=False)
                 # Keep the port combobox enabled
-        #                 self.dosage_port_combobox.setEnabled(True)
+                # self.dosage_port_combobox.setEnabled(True)
         except Exception as e:
             logger.error(f"Error populating ports: {e}")
             pass

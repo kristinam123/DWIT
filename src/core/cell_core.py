@@ -29,14 +29,14 @@ class CellCore(QObject):
 
     def __init__(self):
         """Initialize the CellCore instance."""
-        logger.info("Initializing CellCore instance")
+        logger.debug("Initializing CellCore instance")
         super().__init__()
 
         try:
             # Settings and paths
             self.settings = QSettings("MeasurementCellApp", "Cell")
             self._folder_path = self.settings.value("last_folder_path", "")
-            logger.info(f"Loaded last folder path: {self._folder_path}")
+            logger.debug(f"Loaded last folder path: {self._folder_path}")
 
             # GUI component references
             self.camera_gui = None
@@ -72,7 +72,7 @@ class CellCore(QObject):
             self.file_name = None
             self.table = None
 
-            logger.info("CellCore initialization completed successfully")
+            logger.debug("CellCore initialization completed successfully")
 
         except Exception as e:
             logger.error(f"Error during CellCore initialization: {e}")
@@ -88,7 +88,7 @@ class CellCore(QObject):
             self._folder_path = value
             try:
                 self.settings.setValue("last_folder_path", value)
-                logger.info(f"Folder path updated and saved to settings: {value}")
+                logger.debug(f"Folder path updated and saved to settings: {value}")
                 self.folder_path_changed.emit(value)
                 self.status_changed.emit(f"Folder path updated to: {value}")
             except Exception as e:

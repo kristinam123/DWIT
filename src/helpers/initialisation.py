@@ -27,7 +27,7 @@ def start_run(img_names, q, save_files, folder_path):
         tuple of analysis results for the image or None if processing fails
 
     """
-    logger.info(f"Starting image processing run: index={q}, save_files={save_files}")
+    logger.debug(f"Starting image processing run: index={q}, save_files={save_files}")
 
     # Validate inputs and resolve image path
     img_names, image_path, filename = _validate_and_resolve_image_path(
@@ -71,7 +71,7 @@ def start_run(img_names, q, save_files, folder_path):
     ]
     initialized_lists = {name: [] for name in lists}
 
-    logger.info(f"Image processing run completed successfully for {filename}")
+    logger.debug(f"Image processing run completed successfully for {filename}")
     return (*initialized_lists.values(), src, filename)
 
 

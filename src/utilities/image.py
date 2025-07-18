@@ -35,10 +35,7 @@ def create_background_image(
         Background image
 
     """
-    logger.info(
-        f"Creating background image from "
-        f"{len(image_paths) if image_paths else 0} images"
-    )
+    logger.debug(f"Params: num_images={num_images}, rotate_angle={rotate_angle}, crop_params={crop_params}, use_first_as_background={use_first_as_background}")
 
     try:
         # Validate input
@@ -55,7 +52,7 @@ def create_background_image(
         return _create_simple_background(image_paths[0], rotate_angle, crop_params)
 
     # Advanced approach: use multiple images
-    logger.info("Using advanced approach with multiple images for background creation")
+    logger.debug("Using advanced approach with multiple images for background creation")
 
     # Select sample indices
     sample_indices = _select_sample_indices(len(image_paths), num_images)
@@ -92,7 +89,7 @@ def _create_simple_background(image_path, rotate_angle, crop_params):
 
     """
     x_img, w_img, y_img, h_img = crop_params
-    logger.info("Using first image as background (simple approach)")
+    logger.debug("Using first image as background (simple approach)")
 
     try:
         bg_img = cv2.imread(image_path)
@@ -366,7 +363,7 @@ def convert_videos_to_images(
         list of paths to the extracted image files
 
     """
-    logger.info(f"Starting video to image conversion in folder: {folder_path}")
+    logger.debug(f"Params: use_simple_method={use_simple_method}")
 
     # Check if folder exists
     if not os.path.exists(folder_path):

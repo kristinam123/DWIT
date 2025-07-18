@@ -29,6 +29,7 @@ class AnalysisThread(QThread):
         """Initialize the analysis thread.
 
         Args:
+        ----
             controller: The controller object managing analysis logic and parameters.
             save_files (bool): Whether to save result files during analysis.
             preview_middle (bool): Whether to preview the middle image.
@@ -48,12 +49,15 @@ class AnalysisThread(QThread):
     # In the run method of AnalysisThread
     def run(self):
         """Run analysis process in a separate thread."""
+        logger.info("AnalysisThread started")
         try:
             # Reset state variables at start
             self.is_paused = False
             self.should_stop = False
+            logger.debug("State reset: is_paused=False, should_stop=False")
 
             # Get all parameters from controller
+            logger.debug("Updating analysis parameters from controller")
             self.controller.update_parameters(
                 self.controller.fitting_mode,
                 self.controller.polynom,
@@ -71,6 +75,7 @@ class AnalysisThread(QThread):
             )
 
             # Process images with the proper callback
+            logger.info("Starting image analysis process")
             results = self.controller.process_images(
                 progress_callback=self._progress_callback,
                 save_files=self.save_files,
@@ -79,23 +84,31 @@ class AnalysisThread(QThread):
             )
 
             if results:
+                logger.info("Image analysis completed successfully")
                 self.finished_signal.emit(results)
+            else:
+                logger.warning("Image analysis did not return results")
 
         except Exception as e:
             logger.error("Error in processing thread")
             logger.exception(e)
             self.error_signal.emit(str(e))
+        finally:
+            logger.info("AnalysisThread finished")
 
     def pause(self):
         """Pause processing after the current image is complete."""
+        logger.info("AnalysisThread pause requested")
         self.is_paused = True
 
     def resume(self):
         """Resume processing from where it was paused."""
+        logger.info("AnalysisThread resume requested")
         self.is_paused = False
 
     def stop(self):
         """Stop processing after the current image is complete."""
+        logger.info("AnalysisThread stop requested")
         self.should_stop = True
         self.is_paused = False  # Clear pause state when stopping
 
@@ -110,6 +123,7 @@ class AnalysisThread(QThread):
         """Handle progress updates during analysis and emit signals.
 
         Args:
+        ----
             progress: Current progress value (0-100)
             advancing_contact_angles: List of advancing contact angles
             receding_contact_angles: List of receding contact angles
@@ -117,6 +131,7 @@ class AnalysisThread(QThread):
             result_images: Dictionary of result images
 
         Returns:
+        -------
             bool: False if processing should stop, True otherwise
 
         """

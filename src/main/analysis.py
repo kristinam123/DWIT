@@ -39,7 +39,7 @@ class AnalysisWindow(QWidget):
 
         """
         super().__init__(parent)
-        logger.info(f"Initializing AnalysisWindow with mode: {analysis_mode}")
+        logger.debug(f"Initializing AnalysisWindow with mode: {analysis_mode}")
 
         try:
             self.setWindowTitle(f"Analysis - {analysis_mode.replace('_', ' ').title()}")
@@ -62,7 +62,7 @@ class AnalysisWindow(QWidget):
 
             # Add GUI to layout
             layout.addWidget(self.gui)
-            logger.info("AnalysisWindow UI components initialized and added to layout")
+            logger.debug("AnalysisWindow UI components initialized and added to layout")
 
         except Exception as e:
             # Handle initialization errors
@@ -121,7 +121,7 @@ class AnalysisWindow(QWidget):
 
 
 if __name__ == "__main__":
-    logger.info("Starting AnalysisWindow standalone application")
+    logger.debug("Starting AnalysisWindow standalone application")
 
     app = QApplication(sys.argv)
 

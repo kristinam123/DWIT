@@ -27,6 +27,7 @@ def find_vertical_lines(image):
                 coordinates of the left and right vertical lines
 
     """
+    logger.debug(f"Input image shape: {image.shape}")
     # Convert to grayscale if it's color
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
@@ -47,6 +48,7 @@ def find_vertical_lines(image):
     # Find the largest contour (should be the structured packing)
     try:
         largest_contour = max(contours, key=cv2.contourArea)
+        logger.debug(f"Largest contour has {len(largest_contour)} points")
 
         # Use OpenCV's built-in function to find extreme points
         leftmost = tuple(largest_contour[largest_contour[:, :, 0].argmin()][0])
@@ -65,7 +67,7 @@ def find_vertical_lines(image):
         left_line = (left_edge_x, 0, left_edge_x, image.shape[0])
         right_line = (right_edge_x, 0, right_edge_x, image.shape[0])
 
-        logger.info(
+        logger.debug(
             f"Successfully found vertical lines: left={left_line}, right={right_line}"
         )
         return left_line, right_line

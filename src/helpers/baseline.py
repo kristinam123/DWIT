@@ -32,12 +32,12 @@ def find_single_baseline(image, baseline_offset=0, baseline_tf=False, manual_off
     if baseline_tf:
         y1_left = img_h - manual_offset
         y1_right = y1_left
-        logger.info(
+        logger.debug(
             f"Using manual baseline at y={y1_left} (manual_offset={manual_offset})"
         )
         return y1_left, y1_right
     else:
-        logger.info("Using automatic baseline detection")
+        logger.debug("Using automatic baseline detection")
         # Make a copy of the image for processing
         working_img = image.copy()
         height, width = working_img.shape[:2]
@@ -95,7 +95,7 @@ def find_single_baseline(image, baseline_offset=0, baseline_tf=False, manual_off
                 # Return baseline coordinates with offset
                 y1_left = int(y1) - baseline_offset
                 y1_right = int(y2) - baseline_offset
-                logger.info(f"Detected baseline: left={y1_left}, right={y1_right}")
+                logger.debug(f"Detected baseline: left={y1_left}, right={y1_right}")
 
                 return y1_left, y1_right
             else:

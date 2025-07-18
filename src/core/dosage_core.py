@@ -35,7 +35,7 @@ class DosageCore(QObject):
 
     def __init__(self):
         """Initialize the DosageCore instance."""
-        logger.info("Initializing DosageCore instance")
+        logger.debug("Initializing DosageCore instance")
         super().__init__()
 
         try:
@@ -47,7 +47,7 @@ class DosageCore(QObject):
             # Load saved settings for steps and time
             self._steps_value = self.settings.value("steps", 1, int)
             self._time_value = self.settings.value("time", 4, int)
-            logger.info(
+            logger.debug(
                 f"Loaded saved settings - steps: {self._steps_value}, "
                 f"time: {self._time_value}"
             )
@@ -59,7 +59,7 @@ class DosageCore(QObject):
                 self._on_port_status_changed
             )
 
-            logger.info("DosageCore initialization completed successfully")
+            logger.debug("DosageCore initialization completed successfully")
 
         except Exception as e:
             logger.error(f"Error during DosageCore initialization: {e}")
@@ -97,7 +97,7 @@ class DosageCore(QObject):
             self._steps_value = value
             try:
                 self.settings.setValue("steps", value)
-                logger.info(f"Steps value updated and saved to settings: {value}")
+                logger.debug(f"Steps value updated and saved to settings: {value}")
                 self.steps_value_changed.emit(value)
             except Exception as e:
                 logger.error(f"Error saving steps value to settings: {e}")

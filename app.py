@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 
 def cleanup_logging():
     """Restore original stdout/stderr streams on app exit."""
+    logger.debug("Attempting to clean up logging streams...")
     try:
         if (
             hasattr(logging_manager, "stdout_capture")
@@ -27,7 +28,7 @@ def cleanup_logging():
             and logging_manager.stderr_capture.original_stream
         ):
             sys.stderr = logging_manager.stderr_capture.original_stream
-        logger.info("Logging cleanup completed")
+        logger.debug("Logging cleanup completed")
     except Exception as e:
         logger.error(f"Error during logging cleanup: {e}")
 
@@ -62,6 +63,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 
 
 if __name__ == "__main__":
+    logger.info("Application starting")
     # Set up global exception handler
     sys.excepthook = handle_exception
 
@@ -81,9 +83,9 @@ if __name__ == "__main__":
         logging_manager.initialize_settings()
 
         # Create and show the main window
-        logger.info("Creating main window...")
+        logger.debug("Creating main window...")
         window = CellWindow()
-        logger.info("Main window created successfully")
+        logger.debug("Main window created successfully")
 
         # Restore previous window geometry if available
         settings = QSettings()
@@ -113,16 +115,18 @@ if __name__ == "__main__":
         app.aboutToQuit.connect(gc_timer.stop)
 
         window.show()
-        logger.info("MesszelleApp main window displayed")
+        logger.debug("MesszelleApp main window displayed")
 
         # Start the event loop
-        logger.info("Starting Qt event loop...")
+        logger.debug("Starting Qt event loop...")
         exit_code = app.exec()
 
-        logger.info("Application exiting normally")
+        logger.info("Application shutting down")
+        logger.debug("Application exiting normally")
         sys.exit(exit_code)
 
     except Exception as e:
         logger.error(f"Fatal error during application startup: {e}")
+        logger.info("Application encountered an unrecoverable error and will exit")
         traceback.print_exc()
         sys.exit(1)

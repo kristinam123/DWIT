@@ -19,7 +19,7 @@ class TableWindow(QMainWindow):
     def __init__(self, parent=None):
         """Initialize the TableWindow with optional parent."""
         super().__init__(parent)
-        logger.info("Initializing TableWindow")
+        logger.debug("Initializing TableWindow")
 
         self.setWindowTitle("Table Control")
 
@@ -49,7 +49,7 @@ class TableWindow(QMainWindow):
 
     def load_data(self):
         """Load saved data and update the UI."""
-        logger.info("Loading saved data and updating UI")
+        logger.info("Loading saved data and updating TableWindow UI")
 
         try:
             # Load substance data
@@ -78,7 +78,7 @@ class TableWindow(QMainWindow):
                     self.controller.tilts,
                 ]
             ):
-                logger.info(
+                logger.debug(
                     "All required data available, processing and updating table"
                 )
 
@@ -90,7 +90,7 @@ class TableWindow(QMainWindow):
                 )
 
                 self.gui.update_table()
-                logger.info("Data loaded and table updated successfully")
+                logger.debug("Data loaded and table updated successfully")
                 return True
             else:
                 logger.warning("Some required data missing, table not updated")
@@ -102,18 +102,18 @@ class TableWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    logger.info("Starting TableWindow standalone application")
+    logger.debug("Starting TableWindow standalone application")
 
     app = QApplication(sys.argv)
 
     try:
         window = TableWindow()
-        logger.info("TableWindow created successfully")
+        logger.debug("TableWindow created successfully")
 
         window.show()
-        logger.info("TableWindow displayed")
+        logger.debug("TableWindow displayed")
 
-        logger.info("Starting Qt event loop for table application")
+        logger.debug("Starting Qt event loop for table application")
         sys.exit(app.exec())
 
     except Exception as e:

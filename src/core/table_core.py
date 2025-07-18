@@ -28,7 +28,7 @@ class TableCore(QObject):
 
     def __init__(self):
         """Initialize the TableCore instance."""
-        logger.info("Initializing TableCore instance")
+        logger.debug("Initializing TableCore instance")
         super().__init__()
 
         try:
@@ -49,7 +49,7 @@ class TableCore(QObject):
             self.res_flow_freq = None
             self.res_cannula_diameter = None
 
-            logger.info("TableCore initialization completed successfully")
+            logger.debug("TableCore initialization completed successfully")
 
         except Exception as e:
             logger.error(f"Error during TableCore initialization: {e}")
@@ -67,7 +67,7 @@ class TableCore(QObject):
         self._tilts = self.settings.value("tilts", "45, 60", str)
         self._trials = self.settings.value("trials", "10", str)
 
-        logger.info(
+        logger.debug(
             f"Loaded settings - substance: '{self._substance}', "
             f"droplets: '{self._droplet_diameters}', flows: '{self._counter_flows}', "
             f"tilts: '{self._tilts}', trials: '{self._trials}'"
