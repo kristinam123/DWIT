@@ -38,7 +38,10 @@ def save_results(
         result_lists: Dictionary containing measurement results
 
     """
-    logger.debug(f"save_results called with times: {len(times)}, result_lists keys: {list(result_lists.keys())}")
+    logger.debug(
+        f"save_results called with times: {len(times)}, "
+        f"result_lists keys: {list(result_lists.keys())}"
+    )
 
     # Prepare output directory
     if not _prepare_output_directory(output_dir):
@@ -69,11 +72,14 @@ def save_results(
     folder_name = os.path.basename(parent_dir)
     # Sanitize folder name for filename: remove invalid/special characters
     import re
-    sanitized_folder_name = re.sub(r'[\\/:*?"<>|]', '_', folder_name)
+
+    sanitized_folder_name = re.sub(r'[\\/:*?"<>|]', "_", folder_name)
     # Warn if non-ASCII characters are present
     if not all(ord(c) < 128 for c in sanitized_folder_name):
-        logger.warning(f"Folder name '{folder_name}' contains non-ASCII characters. "
-                       f"This may cause issues on some systems.")
+        logger.warning(
+            f"Folder name '{folder_name}' contains non-ASCII characters. "
+            f"This may cause issues on some systems."
+        )
     excel_filename = f"{sanitized_folder_name}_results_raw.xlsx"
     _save_dataframe_to_excel(raw_data, parent_dir, excel_filename)
 

@@ -373,8 +373,11 @@ class PumpGUI(QWidget):
             return self.setpoint_spinbox.value() * LPH_TO_HZ_RATIO
 
     def update_setpoint(self):
-        logger.info(f"User clicked 'Apply' button. Requested setpoint: {self.setpoint_spinbox.value()} {self.current_unit}")
         """Apply the flow rate setpoint to the pump."""
+        logger.info(
+            f"User clicked 'Apply' button. Requested setpoint: "
+            f"{self.setpoint_spinbox.value()} {self.current_unit}"
+        )
         try:
             # Always convert to L/h for the controller
             lph_value = self._get_lph_value()
@@ -387,8 +390,10 @@ class PumpGUI(QWidget):
             pass
 
     def stop(self):
-        logger.info("User clicked 'Stop' button. Stopping pump (setting flow rate to zero).")
         """Stop the pump by setting flow rate to zero."""
+        logger.info(
+            "User clicked 'Stop' button. Stopping pump (setting flow rate to zero)."
+        )
         logger.info("Stopping pump by setting flow rate to zero")
         self.setpoint_spinbox.setValue(0)
         self.update_setpoint()

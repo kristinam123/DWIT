@@ -166,12 +166,13 @@ class LoggingManager(QObject):
             def __init__(self, logging_manager, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.logging_manager = logging_manager
+
             def emit(self, record):
                 # Suppress log types that are disabled
                 if not self.logging_manager.is_level_enabled(record.levelname):
                     return
                 super().emit(record)
-        
+
         console_handler = ConsoleLogHandler(self, sys.__stdout__)
         console_handler.setFormatter(TerminalStyleFormatter())
         console_handler.setLevel(logging.DEBUG)  # Show debug and higher to terminal

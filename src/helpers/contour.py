@@ -268,7 +268,10 @@ def calculate_drop_area(
         Center point in pixels and mm
 
     """
-    logger.debug(f"Params: y1_left={y1_left}, y1_right={y1_right}, intersection_points={intersection_points}, pixel={pixel}")
+    logger.debug(
+        f"Params: y1_left={y1_left}, y1_right={y1_right}, "
+        f"intersection_points={intersection_points}, pixel={pixel}"
+    )
 
     # Create a copy of the image for visualization
     img_copy = img.copy() if img is not None else None
@@ -373,7 +376,11 @@ def process_contour(
         tuple of (x_mean, x_left_cnt, y_left_cnt, x_right_cnt, y_right_cnt)
 
     """
-    logger.debug(f"Params: contour_len={len(contour) if hasattr(contour, '__len__') else 'unknown'}, line_y={line_y}")
+    logger.debug(
+        f"Params: contour_len="
+        f"{len(contour) if hasattr(contour, '__len__') else 'unknown'}, "
+        f"line_y={line_y}"
+    )
 
     # Handle missing contour
     if contour is None or len(contour) == 0:
@@ -716,6 +723,7 @@ def crop_contour_points(
     """Crop contour points above a certain y threshold.
 
     Args:
+    ----
         x_left: X-coordinates of left contour
         y_left: Y-coordinates of left contour
         x_right: X-coordinates of right contour
@@ -723,6 +731,7 @@ def crop_contour_points(
         threshold_y: Y threshold for cropping
 
     Returns:
+    -------
         tuple of cropped coordinates (x_left, y_left, x_right, y_right)
 
     """

@@ -19,7 +19,10 @@ def draw_dual_baselines(
 ):
     """Draw two horizontal baselines with optional outlines on an image."""
     img_width = img.shape[1]
-    logger.debug(f"Drawing dual baselines at y1_left={y1_left}, y1_right={y1_right}, color1={color1}, color2={color2}, thickness={thickness}")
+    logger.debug(
+        f"Drawing dual baselines at y1_left={y1_left}, y1_right={y1_right}, "
+        f"color1={color1}, color2={color2}, thickness={thickness}"
+    )
     try:
         # Upper baseline
         cv2.line(img, (0, int(y1_left)), (img_width, int(y1_left)), color1, thickness)
@@ -43,7 +46,10 @@ def draw_intersection_points(img, points, y1_left, y1_right, mode="channel"):
 
     Colored by proximity to y1_left/y1_right for channel mode, else yellow/black.
     """
-    logger.debug(f"Drawing {len(points)} intersection points with y1_left={y1_left}, y1_right={y1_right}, mode={mode}")
+    logger.debug(
+        f"Drawing {len(points)} intersection points with "
+        f"y1_left={y1_left}, y1_right={y1_right}, mode={mode}"
+    )
     upper_points, lower_points = [], []
     points_drawn = 0
 
@@ -77,16 +83,24 @@ def draw_intersection_points(img, points, y1_left, y1_right, mode="channel"):
 
 def draw_connection_line(img, p1, p2, color=(0, 255, 0), thickness=2):
     """Draw a line between two points."""
-    logger.debug(f"Drawing connection line from {p1} to {p2}, color={color}, thickness={thickness}")
+    logger.debug(
+        f"Drawing connection line from {p1} to {p2}, "
+        f"color={color}, thickness={thickness}"
+    )
     try:
-        cv2.line(img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), color, thickness)
+        cv2.line(
+            img, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), color, thickness
+        )
     except Exception as e:
         logger.error(f"Error drawing connection line: {e}")
 
 
 def draw_rectangle(img, x, y, w, h, color=(0, 0, 255), thickness=2):
     """Draw a rectangle on the image."""
-    logger.debug(f"Drawing rectangle at x={x}, y={y}, w={w}, h={h}, color={color}, thickness={thickness}")
+    logger.debug(
+        f"Drawing rectangle at x={x}, y={y}, w={w}, h={h}, "
+        f"color={color}, thickness={thickness}"
+    )
     try:
         cv2.rectangle(img, (int(x), int(y)), (int(x + w), int(y + h)), color, thickness)
     except Exception as e:
@@ -95,7 +109,10 @@ def draw_rectangle(img, x, y, w, h, color=(0, 0, 255), thickness=2):
 
 def draw_center_point(img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickness=2):
     """Draw a center point with crosshairs on the image."""
-    logger.debug(f"Drawing center point at ({cx}, {cy}), color={color}, crosshair_size={crosshair_size}, thickness={thickness}")
+    logger.debug(
+        f"Drawing center point at ({cx}, {cy}), "
+        f"color={color}, crosshair_size={crosshair_size}, thickness={thickness}"
+    )
     try:
         cv2.drawMarker(
             img,
@@ -111,7 +128,9 @@ def draw_center_point(img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickne
 
 def highlight_interaction_zone(img, contour, y, zone=10, color=[0, 255, 255]):
     """Highlight the interaction zone around a given y-coordinate on the image."""
-    logger.debug(f"Highlighting interaction zone at y={y} with zone={zone}, color={color}")
+    logger.debug(
+        f"Highlighting interaction zone at y={y} with zone={zone}, color={color}"
+    )
     try:
         img_width = img.shape[1]
         mask = np.zeros(img.shape[:2], dtype=np.uint8)

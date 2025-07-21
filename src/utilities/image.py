@@ -35,7 +35,12 @@ def create_background_image(
         Background image
 
     """
-    logger.debug(f"Params: num_images={num_images}, rotate_angle={rotate_angle}, crop_params={crop_params}, use_first_as_background={use_first_as_background}")
+    logger.debug(
+        f"Params: num_images={num_images}, "
+        f"rotate_angle={rotate_angle}, "
+        f"crop_params={crop_params}, "
+        f"use_first_as_background={use_first_as_background}"
+    )
 
     try:
         # Validate input

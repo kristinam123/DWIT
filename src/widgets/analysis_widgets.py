@@ -214,6 +214,7 @@ class AnalysisGUI(QWidget):
 
     def _show_threshold_image(self, result_images: dict) -> bool:
         """Show threshold image if available."""
+        logger.debug('Showing threshold image using "_show_threshold_image"')
         if "thresh" in result_images:
             # Only show preview dialog if we're in context-sensitive mode
             if self.should_show_context_preview:
@@ -1305,6 +1306,7 @@ class AnalysisGUI(QWidget):
 
     def _show_threshold_preview(self):
         """Show threshold preview with background subtraction like in normal process."""
+        logger.debug('Showing threshold preview using "_show_threshold_preview"')
         try:
             # Get the processed image (rotated and cropped)
             image = self._get_processed_image()
