@@ -1,4 +1,7 @@
-"""Cell threading utilities for automation and experiment control in MesszelleApp."""
+"""Cell threading utilities.
+
+For automation and experiment control in Droplet Wall Interaction Tool.
+"""
 
 from PySide6.QtCore import QMutex, QObject, QThread, QWaitCondition, Signal
 

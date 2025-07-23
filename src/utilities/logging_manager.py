@@ -1,6 +1,7 @@
-"""Centralized logging management for MesszelleApp.
+"""Centralized logging management for Droplet Wall Interaction Tool (DWIT).
 
-This module provides a unified logging system that captures all application logs
+This module provides a unified logging system that captures
+Droplet Wall Interaction Tool (DWIT) application logs
 and routes them to the log overlay with proper formatting and filtering.
 """
 

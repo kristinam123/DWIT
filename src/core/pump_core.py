@@ -1,4 +1,4 @@
-"""Core logic for pump control in MesszelleApp."""
+"""Core logic for pump control in Droplet Wall Interaction Tool."""
 
 from typing import Union
 
@@ -38,7 +38,7 @@ class PumpCore(QObject):
             self._com_port = ""
             self.port_manager = PortManager()
             self.shared_port_manager = SharedPortManager()
-            self.settings = QSettings("MeasurementCellApp", "Pump")
+            self.settings = QSettings("DropletWallInteractionTool", "Pump")
 
             # Listen for port status changes
             self.shared_port_manager.port_status_changed.connect(

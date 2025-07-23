@@ -1,4 +1,4 @@
-"""Core logic for dosage control in MesszelleApp."""
+"""Core logic for dosage control in Droplet Wall Interaction Tool."""
 
 import time
 from typing import Optional
@@ -42,7 +42,7 @@ class DosageCore(QObject):
             self.widget_state = True
             self.port_manager = PortManager()
             self.shared_port_manager = SharedPortManager()
-            self.settings = QSettings("MeasurementCellApp", "Dosage")
+            self.settings = QSettings("DropletWallInteractionTool", "Dosage")
 
             # Load saved settings for steps and time
             self._steps_value = self.settings.value("steps", 1, int)

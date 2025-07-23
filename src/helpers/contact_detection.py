@@ -1,4 +1,4 @@
-"""Contact detection utilities for droplet analysis in MesszelleApp."""
+"""Contact detection utilities for droplet analysis in Droplet Wall Interaction Tool."""
 
 from typing import Optional
 

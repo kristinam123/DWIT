@@ -1,4 +1,7 @@
-"""Velocity calculation utilities for experiment analysis in MesszelleApp."""
+"""Velocity calculation utilities.
+
+For experiment analysis in Droplet Wall Interaction Tool.
+"""
 
 import numpy as np
 

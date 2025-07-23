@@ -1,4 +1,8 @@
-"""Preview utilities for displaying images and analysis results in MesszelleApp."""
+"""Preview utilities.
+
+For displaying images and analysis results 
+in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import cv2
 from PySide6.QtCore import Qt, QTimer

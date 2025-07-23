@@ -1,4 +1,7 @@
-"""Dosage GUI widgets for experiment setup and control in MesszelleApp."""
+"""Dosage GUI widgets.
+
+For experiment setup and control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtWidgets import (

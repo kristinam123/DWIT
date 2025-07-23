@@ -1,4 +1,7 @@
-"""Main application window for experiment analysis in MesszelleApp."""
+"""Main application window.
+
+For experiment analysis in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import os
 import sys

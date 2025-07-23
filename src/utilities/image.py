@@ -1,4 +1,7 @@
-"""Image processing utilities for droplet and experiment analysis in MesszelleApp."""
+"""Image processing utilities.
+
+For droplet and experiment analysis in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import glob
 import os

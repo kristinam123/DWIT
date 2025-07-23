@@ -1,4 +1,7 @@
-"""Port utilities for serial device management in MesszelleApp."""
+"""Port utilities.
+
+For serial device management in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import serial.tools.list_ports
 from PySide6.QtCore import QObject, Signal

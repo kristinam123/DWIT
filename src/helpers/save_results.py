@@ -1,4 +1,7 @@
-"""Result saving utilities for exporting experiment data in MesszelleApp."""
+"""Result saving utilities.
+
+For exporting experiment data in Droplet Wall Interaction Tool.
+"""
 
 import os
 import time

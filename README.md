@@ -1,12 +1,12 @@
 
-# MesszelleApp
+# Droplet Wall Interaction Tool
 
 <!-- Badges: Replace URLs with actual badge links as appropriate -->
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-EPL%202.0-blue)
 
-> MesszelleApp is a research-oriented platform for automated droplet experimentation, quantitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis.
+> Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for automated droplet experimentation, quantitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis.
 
 ---
 
@@ -79,7 +79,7 @@
 
 ## 🚀 Quick Start
 
-To install and launch MesszelleApp:
+To install and launch Droplet Wall Interaction Tool (DWIT):
 
 ```sh
 python -m venv venv
@@ -90,7 +90,7 @@ pip install -r config/requirements.txt
 python app.py
 ```
 
-Alternatively, double-click `MesszelleApp.exe` (Windows, prebuilt) or run `app.py` from your IDE with the correct Python environment.
+Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from your IDE with the correct Python environment.
 
 ---
 
@@ -100,7 +100,7 @@ Alternatively, double-click `MesszelleApp.exe` (Windows, prebuilt) or run `app.p
 ### Batch Analysis (UI-driven)
 
 1. Organize experiment images in a folder (see `test_data/` for examples).
-2. Launch MesszelleApp and navigate to the **Analysis** tab.
+2. Launch DWIT and navigate to the **Analysis** tab.
 3. Add or remove folders for batch processing as needed.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
@@ -160,7 +160,7 @@ No environment variables or CLI flags are required.
 
 <p align="center">
   <img src="resources/screenshots/Flowchart_Analysis.png" alt="Image analysis pipeline flowchart" width="500"/>
-  <br><em>Figure: Overview of the image analysis pipeline implemented in MesszelleApp.</em>
+  <br><em>Figure: Overview of the image analysis pipeline implemented in Droplet Wall Interaction Tool.</em>
 </p>
 
 ---
@@ -191,7 +191,7 @@ We welcome academic and research contributions. To contribute:
 
 ## 📝 License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the Eclipse Public License 2.0 (EPL-2.0). See [LICENSE](LICENSE) for details.
 
 ---
 
@@ -203,3 +203,50 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 - For questions, open an issue or reach out via GitLab.
 
 ---
+
+
+## 📜 Credits / Acknowledgments
+
+This project makes use of the following open-source libraries:
+
+- **PySide6**  
+  Official Python bindings for Qt 6 (part of the Qt for Python project)  
+  Copyright © The Qt Company  
+  Licensed under LGPLv3  
+  [Documentation](https://doc.qt.io/qtforpython-6/) | [License](https://www.gnu.org/licenses/lgpl-3.0.html)
+
+- **NumPy**  
+  Harris, Charles R., et al. "Array programming with NumPy." Nature 585, 357–362 (2020).  
+  [License: CC BY 4.0](https://creativecommons.org/licenses/by/4.0)
+
+- **Pandas**  
+  The pandas development team. "pandas-dev/pandas: Pandas." Zenodo (2025).  
+  [Zenodo](https://zenodo.org/) | [License: BSD]
+
+- **SciPy**  
+  Virtanen, Pauli, et al. "SciPy 1.0: fundamental algorithms for scientific computing in Python." Nat. Methods 17, 261–272 (2020).  
+  [License: CC BY 4.0](https://creativecommons.org/licenses/by/4.0)
+
+- **Pillow**  
+  Murray, Andrew, et al. "python-pillow/Pillow: 11.3.0." Zenodo (2025).  
+  [Pillow Docs](https://pillow.readthedocs.io/en/stable/releasenotes/11.3.0.html) | [License: HPND or PIL License]
+
+- **OpenCV-Python**  
+  Bradski, G. "The OpenCV Library." Dr. Dobb's Journal of Software Tools (2000).  
+  [License: Apache 2.0 or BSD]
+
+- **Matplotlib**  
+  Hunter, J. D. "Matplotlib: A 2D graphics environment." Computing in Science & Engineering 9.3 (2007): 90-95.  
+  [License: Matplotlib License (BSD-like)](https://matplotlib.org/stable/users/project/license.html)
+
+- **XlsxWriter**  
+  McNamara, John. "XlsxWriter: A Python module for creating Excel XLSX files." (2025).  
+  [Docs](https://xlsxwriter.readthedocs.io/) | [License: BSD]
+
+- **pySerial**  
+  Liechti, Chris. "pySerial: Python serial port access library." (2020).  
+  [GitHub](https://github.com/pyserial/pyserial) | [License: BSD]
+
+Please refer to the respective project documentation for detailed license information.
+
+A copy of the full LGPL v3 license is provided in this repository as LICENSES/LGPL-3.0.txt. If not present, you may obtain it at: https://www.gnu.org/licenses/lgpl-3.0.html

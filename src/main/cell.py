@@ -1,4 +1,7 @@
-"""Main application window for cell control in MesszelleApp."""
+"""Main application window.
+
+For cell control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import os
 import sys
@@ -37,7 +40,7 @@ def get_icon_path():
 
 
 class CellWindow(QMainWindow):
-    """Main window for the Measurement Cell application."""
+    """Main window for the Droplet Wall Interaction Tool (DWIT)."""
 
     def __init__(self):
         """Initialize the CellWindow."""

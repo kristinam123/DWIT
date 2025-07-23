@@ -1,4 +1,7 @@
-"""Main application window for dosage control in MesszelleApp."""
+"""Main application window.
+
+For dosage control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import sys
 

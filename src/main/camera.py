@@ -1,4 +1,7 @@
-"""Main application window for camera control in MesszelleApp."""
+"""Main application window.
+
+For camera control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import sys
 from typing import Optional

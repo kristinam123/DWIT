@@ -1,4 +1,7 @@
-"""Dosage threading utilities for automated injection and refill in MesszelleApp."""
+"""Dosage threading utilities.
+
+For automated injection and refill in Droplet Wall Interaction Tool.
+"""
 
 from PySide6.QtCore import QThread, Signal
 

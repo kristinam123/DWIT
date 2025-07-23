@@ -1,4 +1,7 @@
-"""Analysis core functionality for droplet and experiment analysis in MesszelleApp."""
+"""Analysis core functionality.
+
+For droplet and experiment analysis in Droplet Wall Interaction Tool.
+"""
 
 import glob
 import math

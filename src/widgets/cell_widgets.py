@@ -1,4 +1,7 @@
-"""Cell GUI widgets for experiment setup and control in MesszelleApp."""
+"""Cell GUI widgets.
+
+For experiment setup and control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 from PySide6.QtCore import QSettings, Qt, Slot
 from PySide6.QtGui import QFont
@@ -29,7 +32,7 @@ logger = get_logger(__name__)
 
 
 class CellGUI(QWidget):
-    """Modern Measurement Cell control interface."""
+    """Modern Droplet Wall Interaction Tool (DWIT) control interface."""
 
     def __init__(self, parent, controller):
         """Initialize the CellGUI with parent and controller."""

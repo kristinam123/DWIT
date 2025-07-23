@@ -1,4 +1,4 @@
-"""Pump GUI widgets for experiment control in MesszelleApp."""
+"""Pump GUI widgets for experiment control in Droplet Wall Interaction Tool (DWIT)."""
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (

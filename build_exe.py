@@ -1,4 +1,7 @@
-"""Executable build script for packaging MesszelleApp for distribution."""
+"""Executable build script.
+
+For packaging Droplet Wall Interaction Tool for distribution.
+"""
 
 import os
 import subprocess
@@ -6,12 +9,12 @@ import sys
 
 
 def build_executable():
-    """Build the MesszelleApp executable using PyInstaller."""
-    print("Building MesszelleApp executable...")
+    """Build the Droplet Wall Interaction Tool executable using PyInstaller."""
+    print("Building Droplet Wall Interaction Tool executable...")
     # Define PyInstaller command
     command = [
         "pyinstaller",
-        "--name=MesszelleApp",
+        "--name=DWIT",
         "--onefile",
         "--windowed",
         "--icon=resources/icons/avt.ico",
@@ -86,7 +89,7 @@ def build_executable():
     subprocess.call(command)
 
     # Check if executable was created
-    exe_path = os.path.join("dist", "MesszelleApp.exe")
+    exe_path = os.path.join("dist", "DWIT.exe")
     if os.path.exists(exe_path):
         print(f"\nExecutable successfully created at: {os.path.abspath(exe_path)}")
         print(

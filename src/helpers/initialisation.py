@@ -1,4 +1,7 @@
-"""Experiment and application initialization utilities for MesszelleApp."""
+"""Experiment and application initialization utilities.
+
+For Droplet Wall Interaction Tool.
+"""
 
 import os
 import re

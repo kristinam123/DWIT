@@ -1,6 +1,6 @@
 """Analysis GUI widgets for experiment visualization and user interaction.
 
-Part of MesszelleApp.
+Part of Droplet Wall Interaction Tool (DWIT).
 """
 
 import glob

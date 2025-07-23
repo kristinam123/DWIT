@@ -1,4 +1,7 @@
-"""Baseline detection utilities for droplet and experiment analysis in MesszelleApp."""
+"""Baseline detection utilities.
+
+For droplet and experiment analysis in Droplet Wall Interaction Tool.
+"""
 
 import cv2
 import numpy as np

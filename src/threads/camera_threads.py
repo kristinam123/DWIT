@@ -1,4 +1,7 @@
-"""Camera threading utilities for image acquisition in MesszelleApp."""
+"""Camera threading utilities.
+
+For image acquisition in Droplet Wall Interaction Tool.
+"""
 
 from PySide6.QtCore import QMutex, QObject, QThread
 

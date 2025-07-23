@@ -1,4 +1,4 @@
-"""Core logic for cell analysis and control in MesszelleApp."""
+"""Core logic for cell analysis and control in Droplet Wall Interaction Tool (DWIT)."""
 
 import time
 from typing import Optional
@@ -18,7 +18,10 @@ logger = get_logger(__name__)
 
 
 class CellCore(QObject):
-    """Core functionality for Measurement Cell control and automation."""
+    """Core functionality.
+
+    For Droplet Wall Interaction Tool (DWIT) control and automation.
+    """
 
     # Signal definitions
     prompt_changed = Signal(str)
@@ -34,7 +37,7 @@ class CellCore(QObject):
 
         try:
             # Settings and paths
-            self.settings = QSettings("MeasurementCellApp", "Cell")
+            self.settings = QSettings("DropletWallInteractionTool", "Cell")
             self._folder_path = self.settings.value("last_folder_path", "")
             logger.debug(f"Loaded last folder path: {self._folder_path}")
 

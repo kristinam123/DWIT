@@ -1,4 +1,4 @@
-"""Contour analysis and filtering utilities for MesszelleApp."""
+"""Contour analysis and filtering utilities for Droplet Wall Interaction Tool."""
 
 import cv2
 import numpy as np

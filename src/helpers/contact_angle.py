@@ -1,4 +1,4 @@
-"""Contact angle calculation utilities for MesszelleApp."""
+"""Contact angle calculation utilities for Droplet Wall Interaction Tool."""
 
 import cv2
 import numpy as np

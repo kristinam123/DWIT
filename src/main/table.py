@@ -1,4 +1,7 @@
-"""Main application window for experiment table management in MesszelleApp."""
+"""Main application window.
+
+For experiment table management in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import sys
 

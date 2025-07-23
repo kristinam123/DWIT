@@ -1,4 +1,7 @@
-"""Application entry point for launching MesszelleApp."""
+"""Application entry point.
+
+For launching Droplet Wall Interaction Tool (DWIT).
+"""
 
 import gc
 import sys
@@ -73,8 +76,8 @@ if __name__ == "__main__":
     try:
         app = QApplication(sys.argv)
         # Set application metadata for QSettings
-        app.setOrganizationName("MeasurementCellApp")
-        app.setApplicationName("MesszelleApp")
+        app.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
+        app.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
 
         # Set up memory management
         gc_timer = setup_memory_management()
@@ -115,7 +118,7 @@ if __name__ == "__main__":
         app.aboutToQuit.connect(gc_timer.stop)
 
         window.show()
-        logger.debug("MesszelleApp main window displayed")
+        logger.debug("Droplet Wall Interaction Tool (DWIT) main window displayed")
 
         # Start the event loop
         logger.debug("Starting Qt event loop...")

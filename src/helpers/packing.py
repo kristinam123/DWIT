@@ -1,4 +1,7 @@
-"""Packing utilities for droplet and experiment analysis in MesszelleApp."""
+"""Packing utilities.
+
+For droplet and experiment analysis in Droplet Wall Interaction Tool.
+"""
 
 import cv2
 

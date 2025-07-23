@@ -1,4 +1,7 @@
-"""Unit conversion utilities for experiment data in MesszelleApp."""
+"""Unit conversion utilities.
+
+For experiment data in Droplet Wall Interaction Tool (DWIT).
+"""
 
 from typing import Any
 

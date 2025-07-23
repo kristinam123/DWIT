@@ -1,4 +1,4 @@
-"""Core camera control and acquisition logic for MesszelleApp.
+"""Core camera control and acquisition logic for Droplet Wall Interaction Tool (DWIT).
 
 Includes threading and hardware integration.
 """
@@ -72,7 +72,7 @@ class CameraCore(QObject):
         self.cam_max_height = 2880
 
         # Settings storage
-        self.settings = QSettings("MeasurementCellApp", "Camera")
+        self.settings = QSettings("DropletWallInteractionTool", "Camera")
 
         # Camera parameters
         self._exp = self.settings.value("last_exp", 1000, int)

@@ -1,4 +1,7 @@
-"""Drawing utilities for experiment visualization in MesszelleApp."""
+"""Drawing utilities.
+
+For experiment visualization in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import cv2
 import numpy as np

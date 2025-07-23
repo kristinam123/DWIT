@@ -1,4 +1,7 @@
-"""Camera GUI widgets for image acquisition and experiment control in MesszelleApp."""
+"""Camera GUI widgets.
+
+For image acquisition and experiment control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import os
 

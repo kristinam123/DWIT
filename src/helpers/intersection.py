@@ -1,4 +1,7 @@
-"""Intersection and geometry utilities for contour analysis in MesszelleApp."""
+"""Intersection and geometry utilities.
+
+For contour analysis in Droplet Wall Interaction Tool.
+"""
 
 import cv2
 import numpy as np

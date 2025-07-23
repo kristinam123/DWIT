@@ -1,4 +1,7 @@
-"""ROI selection and manipulation utilities for image analysis in MesszelleApp."""
+"""ROI selection and manipulation utilities.
+
+For image analysis in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import cv2
 from PySide6.QtCore import QRect, Qt, Signal

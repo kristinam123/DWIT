@@ -1,4 +1,4 @@
-"""Core logic for experiment table management in MesszelleApp."""
+"""Core logic for experiment table management in Droplet Wall Interaction Tool."""
 
 import json
 import os
@@ -32,7 +32,7 @@ class TableCore(QObject):
         super().__init__()
 
         try:
-            self.settings = QSettings("MeasurementCellApp", "Table")
+            self.settings = QSettings("DropletWallInteractionTool", "Table")
             self._substance = ""
             self._droplet_diameters = ""
             self._counter_flows = ""

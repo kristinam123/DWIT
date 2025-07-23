@@ -1,4 +1,7 @@
-"""Main application window for pump control in MesszelleApp."""
+"""Main application window.
+
+For pump control in Droplet Wall Interaction Tool (DWIT).
+"""
 
 import sys
 

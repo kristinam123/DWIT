@@ -1,4 +1,7 @@
-"""Batch processing utilities for folder-based analysis in MesszelleApp."""
+"""Batch processing utilities.
+
+For folder-based analysis in Droplet Wall Interaction Tool.
+"""
 
 from PySide6.QtCore import QObject, QRect, QSize, QThread, Signal
 from PySide6.QtGui import QColor
