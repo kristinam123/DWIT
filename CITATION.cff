@@ -16,7 +16,7 @@ affiliations:
 version: "1.2.5"
 date-released: "2025-07-23"
 repository-code: https://git.rwth-aachen.de/avt-fvt/public/droplet-wall-interaction-tool
-license: EPL 2.0
+license: EPL-2.0
 keywords:
   - Python
   - laboratory automation
@@ -24,4 +24,4 @@ keywords:
   - droplet experiments
   - scientific software
   - contact angle measurement
-doi: "10.21105/joss.XXXXXXX"
+doi: "XX.XXXXX/joss.XXXXXXX"  # Will be updated after acceptance

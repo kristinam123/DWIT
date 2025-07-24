@@ -1,5 +1,5 @@
 ---
-title: 'Droplet Wall Interaction Tool: A Python Platform for Automated Droplet Experiments and Quantitative Image Analysis'
+title: 'Droplet Wall Interaction Tool: A Python Platform for Automated Droplet Experiments and Qualitative Image Analysis'
 tags:
   - Python
   - laboratory automation
@@ -27,24 +27,24 @@ bibliography: paper.bib
 
 # Summary
 
-Droplet Wall Interaction Tool is a research-oriented, Python-based platform for automated droplet experimentation, quantitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis. Droplet Wall Interaction Tool integrates hardware control (camera, pump, dosage), advanced image processing, and experiment planning tools within a modern PySide6 (Qt for Python) interface. Its modular architecture and batch processing capabilities enable high-throughput, reproducible experiments and facilitate rapid development of new workflows for surface science and fluid dynamics research.
+Droplet Wall Interaction Tool is a research-oriented, Python-based platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis. Droplet Wall Interaction Tool integrates hardware control (camera, pump, dosage), advanced image processing, and experiment planning tools within a modern PySide6 (Qt for Python) interface. Its modular architecture and batch processing capabilities enable high-throughput, reproducible experiments and facilitate rapid development of new workflows for surface science and fluid dynamics research.
 
 # Statement of need
 
-Automated droplet experimentation and quantitative image analysis are essential in surface science, microfluidics, and materials research. Existing tools often lack integration, reproducibility, or extensibility. Droplet Wall Interaction Tool addresses these gaps by providing:
+Automated droplet experimentation and qualitative image analysis are essential in surface science, microfluidics, and materials research. Existing tools often lack integration, reproducibility, or extensibility. Droplet Wall Interaction Tool addresses these gaps by providing:
 - Unified control of experimental hardware (camera, pump, dosage) for streamlined workflows.
-- Robust batch image analysis, including contact angle measurement, droplet quantification, and velocity analysis.
+- Robust batch image analysis, including contact angle measurement, and velocity analysis.
 - Interactive experiment planning, calculation, and export of experiment matrices.
 - Visual and numeric interfaces for region-of-interest (ROI) selection and baseline adjustment.
 - Real-time logging and status indicators for transparency and troubleshooting.
 
-Droplet Wall Interaction Tool is designed for researchers, educators, and students who require a flexible, reproducible, and extensible platform for laboratory automation and quantitative analysis.
+Droplet Wall Interaction Tool is designed for researchers who require a flexible, reproducible, and extensible platform for laboratory automation and qualitative analysis.
 
 # Features and implementation
 
 ## Key Features
 - **Controller Tab:** Integrates camera, pump, and dosage automation for experimental control.
-- **Analysis Tab:** Batch image processing, contact angle measurement, and droplet quantification.
+- **Analysis Tab:** Batch image processing, contact angle measurement.
 - **Table Tab:** Experiment planning, calculation, and CSV export of experiment matrices.
 - **Visual ROI & Baseline:** Graphical and numeric interfaces for ROI selection and baseline adjustment.
 - **Batch Processing:** Analysis of multiple datasets with progress visualization.
@@ -85,34 +85,27 @@ The image analysis pipeline is central to Droplet Wall Interaction Tool. It cons
 10. **Calculate Velocity:** Computes velocity from center point trajectory.
 11. **Save Results & Create Plots:** Saves all results and generates plots/tables.
 
-## Example: AnalysisCore Initialization
-
-```python
-from src.core.analysis_core import AnalysisCore
-
-core = AnalysisCore(folder_path="test_data/", analysis_mode="contact_angle")
-# Set parameters as needed, then run analysis pipeline
-```
-
 ## Usage Example: Batch Analysis
 
-1. Organize experiment images in a folder (see `test_data/`).
-2. Launch Droplet Wall Interaction Tool and open the **Analysis** tab.
-3. Add folders for batch processing, adjust ROI, threshold, and baseline.
-4. Use **Preview** for a check, or **Full Analysis** for comprehensive processing.
-5. Results are saved in structured subfolders according to analysis mode.
-
-# Mathematics
+1. Launch the application by running `python app.py` from the command line.
+2. Navigate to the **Analysis** tab in the GUI.
+3. For each experimental trial, ensure the data is organized in a separate folder containing either:
+   - A video file (e.g., `trial1.mp4`), or
+   - A sequence of images (e.g., `frame_001.jpg`, `frame_002.jpg`, etc.)
+4. Add the trial folders to the analysis queue using the **Add Folder** button.
+5. Adjust analysis parameters (ROI, threshold, baseline) as needed.
+6. Use **Preview** to verify settings or **Full Analysis** to process all queued trials.
+7. Results are automatically saved in structured subfolders within each trial directory.
 
 # Citations
 
-Citations to entries in paper.bib should be in APA-style, e.g., [@astropy], [@joss], etc.
+This work builds upon several key open-source libraries and tools:
 
-# Figures
-
-Figures can be included like this:
-![Controller Tab UI.](resources/screenshots/Tab1_Controllers.png){ width=40% }
-
-# Acknowledgements
-
-We acknowledge contributions from all Droplet Wall Interaction Tool contributors and thank the open-source scientific Python community for foundational libraries. This work is inspired by the principles of open, reproducible science and supported by Fluid Process Engineering (AVT.FVT), RWTH Aachen University
+- NumPy [@NumPy] for efficient numerical computations
+- Pandas [@Pandas] for data manipulation and analysis
+- SciPy [@SciPy] for scientific computing
+- Pillow [@Pillow] for image processing
+- OpenCV [@OpenCV] for image processing and computer vision
+- Matplotlib [@Matplotlib] for plotting and visualization
+- PySerial [@PySerial] for serial communication with hardware
+- PySide6 [@PySide6] for the graphical user interface

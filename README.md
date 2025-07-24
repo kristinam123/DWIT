@@ -1,36 +1,40 @@
-
 # Droplet Wall Interaction Tool
 
 <!-- Badges: Replace URLs with actual badge links as appropriate -->
+[![JOSS](https://joss.theoj.org/papers/XX.XXXXX/joss.XXXXXXX/status.svg)](https://doi.org/XX.XXXXX/joss.XXXXXXX)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-EPL%202.0-blue)
 
-> Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for automated droplet experimentation, quantitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis.
+> Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis.
 
 ---
 
 
-## 📑 Table of Contents
 
-- [✨ Features](#-features)
-- [🗂️ Project Structure](#-project-structure)
-- [🖼️ Screenshots](#-screenshots)
-- [🚀 Quick Start](#-quick-start)
-- [💡 Usage Examples](#-usage-examples)
-- [⚙️ Configuration](#-configuration)
-- [🛠️ Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
-- [📝 License](#-license)
-- [💬 Contact](#-contact)
-
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Usage Examples](#usage-examples)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Detailed Image Analysis Pipeline](#detailed-image-analysis-pipeline)
+- [Contributing](#contributing)
+- [Test Data and Usage](#test-data-and-usage)
+- [License](#license)
+- [Citation](#citation)
+- [Contact](#contact)
+- [Credits / Acknowledgments](#credits--acknowledgments)
 ---
 
 
-## ✨ Features
+<a name="features"></a>
+## Features
 
 - 🎛️ **Controller Tab:** Integrates camera, pump, and dosage automation for streamlined experimental control.
-- 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement, and droplet quantification.
+- 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement.
 - 📋 **Table Tab:** Facilitates experiment planning, calculation, and export of experiment matrices.
 - 🖼️ **Visual ROI & Baseline:** Provides both graphical and numeric interfaces for region selection and baseline adjustment.
 - 🗂️ **Batch Processing:** Supports analysis of multiple datasets with progress visualization.
@@ -42,7 +46,8 @@
 ---
 
 
-## 🗂️ Project Structure
+<a name="project-structure"></a>
+## Project Structure
 
 | Directory         | Purpose                                              |
 |-------------------|------------------------------------------------------|
@@ -57,7 +62,8 @@
 ---
 
 
-## 🖼️ Screenshots
+<a name="screenshots"></a>
+## Screenshots
 
 <p align="center">
   <img src="resources/screenshots/Tab1_Controllers.png" alt="Controller Tab UI" width="400"/>
@@ -77,7 +83,8 @@
 ---
 
 
-## 🚀 Quick Start
+<a name="quick-start"></a>
+## Quick Start
 
 To install and launch Droplet Wall Interaction Tool (DWIT):
 
@@ -95,7 +102,8 @@ Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from 
 ---
 
 
-## 💡 Usage Examples
+<a name="usage-examples"></a>
+## Usage Examples
 
 ### Batch Analysis (UI-driven)
 
@@ -114,7 +122,9 @@ Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from 
 
 ---
 
-## ⚙️ Configuration
+
+<a name="configuration"></a>
+## Configuration
 
 | Setting                | How to Change                | Default/Example                |
 |------------------------|------------------------------|-------------------------------|
@@ -129,7 +139,8 @@ No environment variables or CLI flags are required.
 ---
 
 
-## 🛠️ Troubleshooting
+<a name="troubleshooting"></a>
+## Troubleshooting
 
 **App will not start / missing DLL:**
 - Ensure all dependencies are installed: `pip install -r config/requirements.txt`
@@ -156,7 +167,8 @@ No environment variables or CLI flags are required.
 ---
 
 
-## 🔬 Detailed Image Analysis Pipeline
+<a name="detailed-image-analysis-pipeline"></a>
+## Detailed Image Analysis Pipeline
 
 <p align="center">
   <img src="resources/screenshots/Flowchart_Analysis.png" alt="Image analysis pipeline flowchart" width="500"/>
@@ -166,7 +178,8 @@ No environment variables or CLI flags are required.
 ---
 
 
-## 🤝 Contributing
+<a name="contributing"></a>
+## Contributing
 
 We welcome academic and research contributions. To contribute:
 
@@ -189,14 +202,68 @@ We welcome academic and research contributions. To contribute:
 ---
 
 
-## 📝 License
+<a name="test-data-and-usage"></a>
+## Test Data and Usage
+
+The application includes sample test datasets that are loaded by default on first launch. These are located in `resources/test_data/` and include various test cases for different analysis modes.
+
+### Running an Analysis
+
+1. **Organize your data**:
+   - Create a folder for each experimental trial
+   - Each folder should contain either:
+     - A single video file (e.g., `trial1.mp4`), or
+     - A sequence of images (e.g., `frame_001.jpg`, `frame_002.jpg`, etc.)
+
+2. **Launch the application**:
+   ```sh
+   python app.py
+   ```
+   - The application will start with the Controller tab active
+   - Test datasets will be loaded automatically on first run
+
+3. **Run an analysis**:
+   - Navigate to the **Analysis** tab
+   - Use **Add Folder** to select your trial folder(s)
+   - Adjust analysis parameters as needed
+   - Click **Preview** to verify settings
+   - Click **Full Analysis** to process all queued trials
+   - Results are saved in structured subfolders within each trial directory
+2. For subsequent use, you can add the test folders from `resources/test_data/` in the Analysis tab
+3. The test data includes sample images with known expected results for validation
+
+---
+
+
+<a name="license"></a>
+## License
 
 This project is licensed under the Eclipse Public License 2.0 (EPL-2.0). See [LICENSE](LICENSE) for details.
 
 ---
 
 
-## 💬 Contact
+<a name="citation"></a>
+## Citation
+
+If you use Droplet Wall Interaction Tool in your research, please cite it as:
+
+```
+@software{droplet_wall_interaction_tool_2025,
+  title = {Droplet Wall Interaction Tool: A Python Platform for Automated Droplet Experiments and Qualitative Image Analysis},
+  author = {Mielke, Kristina Ulla Margareta and Can, Arif Rasim},
+  year = {2025},
+  publisher = {Journal of Open Source Software},
+  doi = {XX.XXXXX/joss.XXXXXXX},
+  url = {https://doi.org/XX.XXXXX/joss.XXXXXXX}
+}
+```
+
+---
+
+
+<a name="contact"></a>
+## Contact
 
 - **GitLab:** [arraca22](https://git.rwth-aachen.de/arraca22)
 - **GitHub:** [arraca22](https://github.com/arraca22)
@@ -205,7 +272,8 @@ This project is licensed under the Eclipse Public License 2.0 (EPL-2.0). See [LI
 ---
 
 
-## 📜 Credits / Acknowledgments
+<a name="credits--acknowledgments"></a>
+## Credits / Acknowledgments
 
 This project makes use of the following open-source libraries:
 
