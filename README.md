@@ -33,9 +33,7 @@
 <a name="features"></a>
 ## Features
 
-- 🎛️ **Controller Tab:** Integrates camera, pump, and dosage automation for streamlined experimental control.
 - 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement.
-- 📋 **Table Tab:** Facilitates experiment planning, calculation, and export of experiment matrices.
 - 🖼️ **Visual ROI & Baseline:** Provides both graphical and numeric interfaces for region selection and baseline adjustment.
 - 🗂️ **Batch Processing:** Supports analysis of multiple datasets with progress visualization.
 - 📈 **Wobble & Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.
@@ -51,13 +49,9 @@
 
 | Directory         | Purpose                                              |
 |-------------------|------------------------------------------------------|
-| `src/core/`       | Core business logic (cell, camera, analysis, etc.)   |
-| `src/widgets/`    | Main UI components (cell, camera, analysis, etc.)    |
 | `src/helpers/`    | Image processing, analysis, and data saving helpers  |
-| `src/threads/`    | Background processing for UI responsiveness          |
-| `src/utilities/`  | Utilities for port, ROI, and camera management       |
-| `config/`         | Conversion tables and requirements                   |
-| `test_data/`      | Test images organized by experiment type             |
+| `src/utilities/`  | Utilities for port, ROI management                   |
+| `tests/`          | Test images organized by experiment type             |
 
 ---
 
@@ -66,18 +60,8 @@
 ## Screenshots
 
 <p align="center">
-  <img src="resources/screenshots/Tab1_Controllers.png" alt="Controller Tab UI" width="400"/>
-  <br><em>Controller Tab: Unified control for hardware automation.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screenshots/Tab2_Table.png" alt="Table Tab UI" width="400"/>
-  <br><em>Table Tab: Experiment planning and matrix export.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screenshots/Tab3_Analysis.png" alt="Analysis Tab UI" width="400"/>
-  <br><em>Analysis Tab: Batch image analysis and visualization.</em>
+  <img src="resources/DWIT.png" alt="Analysis Tab UI" width="400"/>
+  <br><em>DWIT: Batch image analysis and visualization.</em>
 </p>
 
 ---
@@ -93,11 +77,11 @@ python -m venv venv
 venv\Scripts\activate  # On Windows
 # or
 source venv/bin/activate  # On macOS/Linux
-pip install -r config/requirements.txt
-python app.py
+pip install -r requirements.txt
+python dwit.py
 ```
 
-Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from your IDE with the correct Python environment.
+Alternatively run `dwit.py` from your IDE with the correct Python environment.
 
 ---
 
@@ -107,7 +91,7 @@ Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from 
 
 ### Batch Analysis (UI-driven)
 
-1. Organize experiment images in a folder (see `test_data/` for examples).
+1. Organize experiment images in a folder (see `tests/` for examples).
 2. Launch DWIT and navigate to the **Analysis** tab.
 3. Add or remove folders for batch processing as needed.
 4. Adjust ROI, threshold, and baseline parameters.
@@ -130,8 +114,7 @@ Alternatively, double-click `DWIT.exe` (Windows, prebuilt) or run `app.py` from 
 |------------------------|------------------------------|-------------------------------|
 | Working Directory      | Set via UI in Controller Tab | (User-selected)                |
 | ROI, Baseline, Params  | Set via UI in Analysis Tab   | (User-selected)                |
-| Experiment Table       | Configure in Table Tab       | (User input, CSV export)       |
-| Dependencies           | `config/requirements.txt`    | See file                       |
+| Dependencies           | `requirements.txt`    | See file                       |
 | Linting/Formatting     | `pyproject.toml`             | Ruff, Black-style, isort rules |
 
 No environment variables or CLI flags are required.
@@ -143,8 +126,8 @@ No environment variables or CLI flags are required.
 ## Troubleshooting
 
 **App will not start / missing DLL:**
-- Ensure all dependencies are installed: `pip install -r config/requirements.txt`
-- On Windows, use the provided `.exe` or activate your virtual environment.
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- On Windows, activate your virtual environment.
 
 **No images found / cannot select folder:**
 - Remove default folders and add your own via the UI.
@@ -171,7 +154,7 @@ No environment variables or CLI flags are required.
 ## Detailed Image Analysis Pipeline
 
 <p align="center">
-  <img src="resources/screenshots/Flowchart_Analysis.png" alt="Image analysis pipeline flowchart" width="500"/>
+  <img src="resources/Flowchart_Analysis.png" alt="Image analysis pipeline flowchart" width="500"/>
   <br><em>Figure: Overview of the image analysis pipeline implemented in Droplet Wall Interaction Tool.</em>
 </p>
 
@@ -195,8 +178,8 @@ We welcome academic and research contributions. To contribute:
 5. Submit a pull/merge request with a clear description of your changes.
 
 **Development notes:**
-- UI: `src/widgets/` | Core: `src/core/` | Helpers: `src/helpers/`
-- Use absolute imports (e.g., `from src.core.cell_core import ...`)
+- Helpers: `src/helpers/`
+- Use absolute imports (e.g., `from src.core import ...`)
 - Update documentation if you add features.
 
 ---
@@ -205,7 +188,7 @@ We welcome academic and research contributions. To contribute:
 <a name="test-data-and-usage"></a>
 ## Test Data and Usage
 
-The application includes sample test datasets that are loaded by default on first launch. These are located in `resources/test_data/` and include various test cases for different analysis modes.
+The application includes sample test datasets that are loaded by default on first launch. These are located in `tests/` and include various test cases for different analysis modes.
 
 ### Running an Analysis
 
@@ -217,7 +200,7 @@ The application includes sample test datasets that are loaded by default on firs
 
 2. **Launch the application**:
    ```sh
-   python app.py
+   python dwit.py
    ```
    - The application will start with the Controller tab active
    - Test datasets will be loaded automatically on first run
@@ -229,7 +212,7 @@ The application includes sample test datasets that are loaded by default on firs
    - Click **Preview** to verify settings
    - Click **Full Analysis** to process all queued trials
    - Results are saved in structured subfolders within each trial directory
-2. For subsequent use, you can add the test folders from `resources/test_data/` in the Analysis tab
+2. For subsequent use, you can add the test folders from `tests/` in the Analysis tab
 3. The test data includes sample images with known expected results for validation
 
 ---
@@ -295,25 +278,9 @@ This project makes use of the following open-source libraries:
   Virtanen, Pauli, et al. "SciPy 1.0: fundamental algorithms for scientific computing in Python." Nat. Methods 17, 261–272 (2020).  
   [License: CC BY 4.0](https://creativecommons.org/licenses/by/4.0)
 
-- **Pillow**  
-  Murray, Andrew, et al. "python-pillow/Pillow: 11.3.0." Zenodo (2025).  
-  [Pillow Docs](https://pillow.readthedocs.io/en/stable/releasenotes/11.3.0.html) | [License: HPND or PIL License]
-
 - **OpenCV-Python**  
   Bradski, G. "The OpenCV Library." Dr. Dobb's Journal of Software Tools (2000).  
   [License: Apache 2.0 or BSD]
-
-- **Matplotlib**  
-  Hunter, J. D. "Matplotlib: A 2D graphics environment." Computing in Science & Engineering 9.3 (2007): 90-95.  
-  [License: Matplotlib License (BSD-like)](https://matplotlib.org/stable/users/project/license.html)
-
-- **XlsxWriter**  
-  McNamara, John. "XlsxWriter: A Python module for creating Excel XLSX files." (2025).  
-  [Docs](https://xlsxwriter.readthedocs.io/) | [License: BSD]
-
-- **pySerial**  
-  Liechti, Chris. "pySerial: Python serial port access library." (2020).  
-  [GitHub](https://github.com/pyserial/pyserial) | [License: BSD]
 
 Please refer to the respective project documentation for detailed license information.
 

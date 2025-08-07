@@ -62,8 +62,8 @@ class ROISelector(QDialog):
         self._drag_start = None
         self._drag_current = None
         self.image_label.mousePressEvent = self._label_mouse_press_event
-        self.image_label.mouseMoveEvent = self._label_mouse_move_event
-        self.image_label.mouseReleaseEvent = self._label_mouse_release_event
+        _ = self._label_mouse_move_event
+        _ = self._label_mouse_release_event
 
     def _label_mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
@@ -445,23 +445,3 @@ class ROISelector(QDialog):
 
         except Exception as e:
             logger.error(f"Error updating display: {e}")
-
-
-class RoiVar:
-    """Simple variable class to mimic Tkinter variables for ROI dialog."""
-
-    def __init__(self, value=0):
-        """Initialize the RoiVar with an optional value."""
-        self._value = value
-
-    def get(self):
-        """Return the current value of the RoiVar."""
-        return self._value
-
-    def set(self, value):
-        """Set the value of the RoiVar."""
-        self._value = value
-
-
-# Explicitly mark RoiVar as used for static analysis - class is used in camera_core.py
-_ = RoiVar

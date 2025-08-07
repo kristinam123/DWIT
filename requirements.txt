@@ -8,11 +8,3 @@ scipy>=1.7.0  # CC BY 4.0 - https://creativecommons.org/licenses/by/4.0
 
 # Image Processing
 opencv-python>=4.5.0  # Apache 2.0 or BSD License
-Pillow>=9.0.0  # HPND or PIL License
-
-# Visualization and Reporting
-matplotlib>=3.5.0  # Matplotlib License (BSD-like) - https://matplotlib.org/stable/users/project/license.html
-xlsxwriter>=3.0.0  # BSD License
-
-# Serial Communication
-pyserial>=3.5  # BSD License

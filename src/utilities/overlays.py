@@ -2,7 +2,7 @@
 
 import re
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -553,149 +553,71 @@ class LogOverlay(SmoothOverlay):
 class NavigationOverlay(SmoothOverlay):
     """Improved navigation overlay that follows its parent smoothly."""
 
+    page_selected = Signal(int)
+
     def __init__(self, parent=None):
         """Initialize the NavigationOverlay."""
         super().__init__(parent)
-        self.last_analysis_mode = 1  # Default to Free Sedimentation
         self._create_widgets()
-        self._update_analysis_button_text()  # Initialize button text
 
     def _create_widgets(self):
         """Create navigation widgets."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(0)
 
-        # Header with consistent styling
-        header_layout = QHBoxLayout()
-        self.toggle_btn = QToolButton()
-        self.toggle_btn.setText("Page Selection ▼")
-        self.toggle_btn.clicked.connect(self.hide_overlay)
-        self.toggle_btn.setStyleSheet(
-            """
-            QToolButton {
-                color: white;
-                border: none;
-                font-weight: bold;
-                background-color: transparent;
-            }
-            QToolButton:hover {
-                background-color: rgba(255, 255, 255, 20);
-                border-radius: 4px;
-            }
-        """
-        )
-        header_layout.addStretch(1)
-        header_layout.addWidget(self.toggle_btn)
-        layout.addLayout(header_layout)
+        # All buttons have the same fixed width (longest text: Free Sedimentation)
+        button_width = 180
+        button_height = 32
 
-        # Navigation buttons with consistent styling
-        nav_frame = QFrame()
-        nav_frame.setStyleSheet(
-            """
-            QFrame {
-                background-color: rgba(20, 20, 20, 100);
-                border: 1px solid rgba(128, 128, 128, 100);
-                border-radius: 4px;
-            }
-        """
-        )
-        nav_layout = QVBoxLayout(nav_frame)
-
-        main_pages = [
-            (0, "Controllers"),
-            (5, "Experiment Table"),
+        # Add analysis mode buttons as main headings
+        analysis_modes = [
+            (0, "Free Sedimentation"),
+            (1, "Contact Angle"),
+            (2, "Channel"),
+            (3, "Structured Packing"),
         ]
 
-        for idx, text in main_pages:
+        btn_layout = QVBoxLayout()
+        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setSpacing(8)
+
+        for idx, text in analysis_modes:
             btn = QToolButton()
             btn.setText(text)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setFixedWidth(button_width)
+            btn.setFixedHeight(button_height)
             btn.setStyleSheet(
                 """
                 QToolButton {
                     color: white;
+                    background-color: rgba(60, 60, 60, 150);
+                    border: 1px solid rgba(128, 128, 128, 100);
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    padding: 0;
+                    margin: 0;
+                    qproperty-iconSize: 0px;
                     text-align: center;
-                    border: none;
-                    font-size: 12px;
-                    background-color: transparent;
-                    min-width: 180px;
                 }
                 QToolButton:hover {
-                    background-color: rgba(255, 255, 255, 25);
-                    color: #ffffff;
+                    background-color: rgba(80, 80, 80, 200);
+                    color: #fff;
                 }
                 QToolButton:pressed {
-                    background-color: rgba(255, 255, 255, 40);
+                    background-color: rgba(100, 100, 100, 220);
                 }
             """
             )
-            btn.clicked.connect(lambda checked, i=idx: self._navigate_to(i))
-            nav_layout.addWidget(btn)
+            btn.clicked.connect(lambda i=idx: self._navigate_to_analysis(i))
+            btn_layout.addWidget(btn, alignment=Qt.AlignHCenter)
 
-        # Add Analysis button (opens last selected analysis mode)
-        self.analysis_btn = QToolButton()
-        self.analysis_btn.setText("Analysis")
-        self.analysis_btn.setStyleSheet(
-            """
-            QToolButton {
-                color: white;
-                text-align: center;
-                border: none;
-                font-size: 12px;
-                background-color: transparent;
-                min-width: 180px;
-            }
-            QToolButton:hover {
-                background-color: rgba(255, 255, 255, 25);
-                color: #ffffff;
-            }
-            QToolButton:pressed {
-                background-color: rgba(255, 255, 255, 40);
-            }
-        """
-        )
-        self.analysis_btn.clicked.connect(self._open_analysis)
-        nav_layout.addWidget(self.analysis_btn)
-
-        # Add separator
-        separator = QFrame()
-        separator.setFrameStyle(QFrame.HLine | QFrame.Sunken)
-        separator.setStyleSheet("color: rgba(128, 128, 128, 100);")
-        nav_layout.addWidget(separator)
-
-        # Add analysis mode buttons (indented)
-        analysis_modes = [
-            (1, "Free Sedimentation"),
-            (2, "Contact Angle"),
-            (3, "Channel"),
-            (4, "Structured Packing"),
-        ]
-
-        for idx, text in analysis_modes:
-            btn = QToolButton()
-            btn.setText(f"  {text}")  # Indent with spaces
-            btn.setStyleSheet(
-                """
-                QToolButton {
-                    color: rgba(220, 220, 220, 200);
-                    text-align: left;
-                    border: none;
-                    font-size: 11px;
-                    background-color: transparent;
-                    min-width: 180px;
-                }
-                QToolButton:hover {
-                    background-color: rgba(255, 255, 255, 15);
-                    color: #ffffff;
-                }
-                QToolButton:pressed {
-                    background-color: rgba(255, 255, 255, 30);
-                }
-            """
-            )
-            btn.clicked.connect(lambda checked, i=idx: self._navigate_to_analysis(i))
-            nav_layout.addWidget(btn)
-
-        nav_layout.addStretch()
-        layout.addWidget(nav_frame)
+        # Add stretch above and below to center vertically
+        layout.addStretch(1)
+        layout.addLayout(btn_layout)
+        layout.addStretch(1)
 
     def _update_geometry(self):
         """Update overlay geometry to stick to bottom-right of parent."""
@@ -703,47 +625,30 @@ class NavigationOverlay(SmoothOverlay):
             return
 
         parent_rect = self.parent_widget.rect()
-        width = 220  # Reduced width for compact design
-        height = 250  # Reduced height for compact design
+        width = 220  # Compact width for the 4 analysis modes
+        height = 180  # Reduced height - no header, just 4 buttons
 
         # Position at bottom-right of parent
         self.setGeometry(
             parent_rect.width() - width, parent_rect.height() - height, width, height
         )
 
-    def _navigate_to(self, page_index):
-        """Navigate to selected page."""
-        if self.parent_widget and hasattr(
-            self.parent_widget, "_apply_selected_navigation"
-        ):
-            self.parent_widget._apply_selected_navigation(page_index)
-        self.hide_overlay()
-
     def _navigate_to_analysis(self, analysis_mode):
-        """Navigate to specific analysis mode and remember it."""
-        self.last_analysis_mode = analysis_mode
-        self._update_analysis_button_text()
-        if self.parent_widget and hasattr(
-            self.parent_widget, "_apply_selected_navigation"
-        ):
-            self.parent_widget._apply_selected_navigation(analysis_mode)
+        """Navigate to specific analysis mode."""
+        mode_names = [
+            "Free Sedimentation",
+            "Contact Angle",
+            "Channel",
+            "Structured Packing",
+        ]
+        mode_name = (
+            mode_names[analysis_mode]
+            if 0 <= analysis_mode < len(mode_names)
+            else str(analysis_mode)
+        )
+        logger.info(
+            f"User selected mode in navigation overlay: {mode_name} "
+            f"(index {analysis_mode})"
+        )
+        self.page_selected.emit(analysis_mode)
         self.hide_overlay()
-
-    def _open_analysis(self):
-        """Open the last selected analysis mode."""
-        if self.parent_widget and hasattr(
-            self.parent_widget, "_apply_selected_navigation"
-        ):
-            self.parent_widget._apply_selected_navigation(self.last_analysis_mode)
-        self.hide_overlay()
-
-    def _update_analysis_button_text(self):
-        """Update the analysis button text to show current mode."""
-        mode_names = {
-            1: "Free Sedimentation",
-            2: "Contact Angle",
-            3: "Channel",
-            4: "Structured Packing",
-        }
-        current_mode = mode_names.get(self.last_analysis_mode, "Free Sedimentation")
-        self.analysis_btn.setText(f"Analysis ({current_mode})")

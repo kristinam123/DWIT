@@ -27,12 +27,11 @@ bibliography: paper.bib
 
 # Summary
 
-Droplet Wall Interaction Tool is a research-oriented, Python-based platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis. Droplet Wall Interaction Tool integrates hardware control (camera, pump, dosage), advanced image processing, and experiment planning tools within a modern PySide6 (Qt for Python) interface. Its modular architecture and batch processing capabilities enable high-throughput, reproducible experiments and facilitate rapid development of new workflows for surface science and fluid dynamics research.
+Droplet Wall Interaction Tool is a research-oriented, Python-based platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis. Droplet Wall Interaction Tool integrates advanced image processing within a modern PySide6 (Qt for Python) interface. Its modular architecture and batch processing capabilities enable high-throughput, reproducible experiments and facilitate rapid development of new workflows for surface science and fluid dynamics research.
 
 # Statement of need
 
 Automated droplet experimentation and qualitative image analysis are essential in surface science, microfluidics, and materials research. Existing tools often lack integration, reproducibility, or extensibility. Droplet Wall Interaction Tool addresses these gaps by providing:
-- Unified control of experimental hardware (camera, pump, dosage) for streamlined workflows.
 - Robust batch image analysis, including contact angle measurement, and velocity analysis.
 - Interactive experiment planning, calculation, and export of experiment matrices.
 - Visual and numeric interfaces for region-of-interest (ROI) selection and baseline adjustment.
@@ -43,9 +42,7 @@ Droplet Wall Interaction Tool is designed for researchers who require a flexible
 # Features and implementation
 
 ## Key Features
-- **Controller Tab:** Integrates camera, pump, and dosage automation for experimental control.
 - **Analysis Tab:** Batch image processing, contact angle measurement.
-- **Table Tab:** Experiment planning, calculation, and CSV export of experiment matrices.
 - **Visual ROI & Baseline:** Graphical and numeric interfaces for ROI selection and baseline adjustment.
 - **Batch Processing:** Analysis of multiple datasets with progress visualization.
 - **Wobble & Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.
@@ -67,7 +64,7 @@ Droplet Wall Interaction Tool follows a modular architecture:
   Threads/Signals   Data/Params/State   Results/Exports
 ```
 
-The application is organized into core logic modules (`src/core/`), UI components (`src/widgets/`), helpers for image processing and analysis (`src/helpers/`), and utilities for hardware management and threading.
+The application is organized into core logic (`src/core.py`), UI (`src/widgets.py`), helpers for image processing and analysis (`src/helpers/`), and utilities for hardware management and threading.
 
 ## Image Analysis Pipeline
 
@@ -87,7 +84,7 @@ The image analysis pipeline is central to Droplet Wall Interaction Tool. It cons
 
 ## Usage Example: Batch Analysis
 
-1. Launch the application by running `python app.py` from the command line.
+1. Launch the application by running `python dwit.py` from the command line.
 2. Navigate to the **Analysis** tab in the GUI.
 3. For each experimental trial, ensure the data is organized in a separate folder containing either:
    - A video file (e.g., `trial1.mp4`), or
@@ -104,8 +101,5 @@ This work builds upon several key open-source libraries and tools:
 - NumPy [@NumPy] for efficient numerical computations
 - Pandas [@Pandas] for data manipulation and analysis
 - SciPy [@SciPy] for scientific computing
-- Pillow [@Pillow] for image processing
 - OpenCV [@OpenCV] for image processing and computer vision
-- Matplotlib [@Matplotlib] for plotting and visualization
-- PySerial [@PySerial] for serial communication with hardware
 - PySide6 [@PySide6] for the graphical user interface

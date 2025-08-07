@@ -183,7 +183,6 @@ class LoggingManager(QObject):
         # on commonly used library loggers
         for logger_name in [
             "PIL",
-            "matplotlib",
             "numpy",
             "opencv",
             "cv2",

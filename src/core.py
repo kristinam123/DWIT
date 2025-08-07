@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Property, QObject, QSettings, Signal
 
-from src.helpers.baseline import find_dual_baseline, find_single_baseline
+from src.helpers.baseline import find_single_baseline
 from src.helpers.contact_angle import (
     calculate_contact_angle_left,
     calculate_contact_angle_right,
@@ -121,19 +121,6 @@ class AnalysisCore(QObject):
                     self.add_folder_path(folder_path)
 
             # Constant values
-            self.headers = [
-                "Image name",
-                "Time",
-                "Advancing CA",
-                "Receding CA",
-                "Width [px]",
-                "Width [mm]",
-                "Height [px]",
-                "Height [mm]",
-                "Center point [px]",
-                "Center point [mm]",
-                "Velocity",
-            ]
             self.image_extensions = [
                 "*.jpg",
                 "*.jpeg",
@@ -144,8 +131,6 @@ class AnalysisCore(QObject):
             ]
 
             # Calculated values
-            self.polynom_x_img = self._x_img - 270
-            self.polynom_w_img = self._w_img
             self.output_path = (
                 self._folder_path + "/Output" if self._folder_path else ""
             )
@@ -218,9 +203,6 @@ class AnalysisCore(QObject):
         for attr, value in param_map:
             if value is not None:
                 setattr(self, attr, value)
-
-        self.polynom_x_img = self._x_img - 270
-        self.polynom_w_img = self._w_img
 
     def save_setting(self, key: str, value: Any) -> None:
         """Save a specific setting for the current analysis_mode."""
@@ -339,8 +321,6 @@ class AnalysisCore(QObject):
             self._x_img = value
             self.save_setting("xImg", value)
             self.x_img_changed.emit(value)
-            # Update derived value
-            self.polynom_x_img = self._x_img - 270
 
     def set_w_img(self, value: int) -> None:
         """Set the width for image cropping."""
@@ -348,8 +328,6 @@ class AnalysisCore(QObject):
             self._w_img = value
             self.save_setting("wImg", value)
             self.w_img_changed.emit(value)
-            # Update derived value
-            self.polynom_w_img = self._w_img
 
     def set_threshold(self, value: int) -> None:
         """Set the threshold value for image analysis."""
@@ -433,16 +411,16 @@ class AnalysisCore(QObject):
                 self._w_img = self.settings.value("wImg", 2900, type=int)
                 self._folder_path = self.settings.value(
                     "folderPath",
-                    "resources/test_data/free_sedimentation (BuAc_d_large)",
+                    "tests/free_sedimentation (BuAc_d_large)",
                 )
                 self._folder_paths = self.settings.value(
                     "folderPaths",
-                    ["resources/test_data/free_sedimentation (BuAc_d_large)"],
+                    ["tests/free_sedimentation (BuAc_d_large)"],
                     type=list,
                 )
                 self._main_folder_path = self.settings.value(
                     "mainFolderPath",
-                    "resources/test_data/free_sedimentation (BuAc_d_large)",
+                    "tests/free_sedimentation (BuAc_d_large)",
                     type=str,
                 )
                 self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
@@ -459,16 +437,16 @@ class AnalysisCore(QObject):
                 self._x_img = self.settings.value("xImg", 0, type=int)
                 self._w_img = self.settings.value("wImg", 2500, type=int)
                 self._folder_path = self.settings.value(
-                    "folderPath", "resources/test_data/channel (BuAc_d_large)"
+                    "folderPath", "tests/channel (BuAc_d_large)"
                 )
                 self._folder_paths = self.settings.value(
                     "folderPaths",
-                    ["resources/test_data/channel (BuAc_d_large)"],
+                    ["tests/channel (BuAc_d_large)"],
                     type=list,
                 )
                 self._main_folder_path = self.settings.value(
                     "mainFolderPath",
-                    "resources/test_data/channel (BuAc_d_large)",
+                    "tests/channel (BuAc_d_large)",
                     type=str,
                 )
                 self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
@@ -486,16 +464,16 @@ class AnalysisCore(QObject):
                 self._w_img = self.settings.value("wImg", 2900, type=int)
                 self._folder_path = self.settings.value(
                     "folderPath",
-                    "resources/test_data/structured_packing (BuAc_d_large)",
+                    "tests/structured_packing (BuAc_d_large)",
                 )
                 self._folder_paths = self.settings.value(
                     "folderPaths",
-                    ["resources/test_data/structured_packing (BuAc_d_large)"],
+                    ["tests/structured_packing (BuAc_d_large)"],
                     type=list,
                 )
                 self._main_folder_path = self.settings.value(
                     "mainFolderPath",
-                    "resources/test_data/structured_packing (BuAc_d_large)",
+                    "tests/structured_packing (BuAc_d_large)",
                     type=str,
                 )
                 self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
@@ -512,16 +490,16 @@ class AnalysisCore(QObject):
                 self._x_img = self.settings.value("xImg", 300, type=int)
                 self._w_img = self.settings.value("wImg", 2500, type=int)
                 self._folder_path = self.settings.value(
-                    "folderPath", "resources/test_data/contact_wall (BuAc_d_large)"
+                    "folderPath", "tests/contact_wall (BuAc_d_large)"
                 )
                 self._folder_paths = self.settings.value(
                     "folderPaths",
-                    ["resources/test_data/contact_wall (BuAc_d_large)"],
+                    ["tests/contact_wall (BuAc_d_large)"],
                     type=list,
                 )
                 self._main_folder_path = self.settings.value(
                     "mainFolderPath",
-                    "resources/test_data/contact_wall (BuAc_d_large)",
+                    "tests/contact_wall (BuAc_d_large)",
                     type=str,
                 )
                 self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
@@ -1059,20 +1037,6 @@ class AnalysisCore(QObject):
             logger.error(f"Error finding vertical lines: {e}")
             return None, None
 
-    def _detect_channel_baselines(self, middle_src):
-        """Detect dual baselines for channel mode."""
-        try:
-            y1_left, y1_right, axis_y = find_dual_baseline(
-                middle_src,
-                baseline_offset=self.baseline,
-                baseline_tf=self.baseline_tf,
-                manual_offset=self.manual_baseline,
-            )
-            return y1_left, y1_right
-        except Exception as e:
-            logger.error(f"Error finding dual baselines: {e}")
-            return None, None
-
     def _detect_single_baseline(self, middle_src):
         """Detect single baseline for other modes."""
         try:
@@ -1222,71 +1186,6 @@ class AnalysisCore(QObject):
                 progress_callback,
             )
 
-    def _process_channel_mode_file(
-        self,
-        src,
-        background,
-        y1_left,
-        y1_right,
-        vertical_left,
-        vertical_right,
-        q,
-        save_files,
-        filename,
-        result_lists,
-        files,
-        progress_callback,
-    ):
-        """Process a file in channel mode (dual baselines)."""
-        # First baseline (y1)
-        _, _, angles1, center_point1, rect_w1, rect_h1, result_images1 = (
-            self._process_image_thread(
-                src.copy(),
-                background.copy(),
-                y1_left,
-                y1_right,
-                None,
-                None,
-                q,
-                save_files,
-                filename,
-                vertical_left,
-                vertical_right,
-            )
-        )
-
-        # Second baseline (y2)
-        _, _, angles2, _, _, _, _ = self._process_image_thread(
-            src.copy(),
-            background.copy(),
-            None,
-            None,
-            q,
-            save_files,
-            filename,
-            vertical_left,
-            vertical_right,
-        )
-
-        # Store results for channel mode
-        self._store_channel_mode_results(
-            result_lists,
-            filename,
-            angles1,
-            angles2,
-            center_point1,
-            rect_w1,
-            rect_h1,
-            result_images1,
-            q,
-            len(files),
-        )
-
-        # Handle progress callback
-        return self._handle_progress_callback_channel(
-            progress_callback, q, files, result_lists, result_images1
-        )
-
     def _process_standard_mode_file(
         self,
         src,
@@ -1337,55 +1236,6 @@ class AnalysisCore(QObject):
         return self._handle_progress_callback_standard(
             progress_callback, q, files, result_lists, result_images, rect_w, rect_h
         )
-
-    def _store_channel_mode_results(
-        self,
-        result_lists,
-        filename,
-        angles1,
-        angles2,
-        center_point1,
-        rect_w1,
-        rect_h1,
-        result_images1,
-        q,
-        num_files,
-    ):
-        """Store results for channel mode processing."""
-        result_lists["filenames"].append(filename)
-
-        # Initialize channel-specific result lists if needed
-        if "advancing_contact_angles_1" not in result_lists:
-            result_lists["advancing_contact_angles_1"] = [float("nan")] * num_files
-            result_lists["receding_contact_angles_1"] = [float("nan")] * num_files
-            result_lists["advancing_contact_angles_2"] = [float("nan")] * num_files
-            result_lists["receding_contact_angles_2"] = [float("nan")] * num_files
-
-        q = int(q) if isinstance(q, (int, float)) else q
-
-        # Store angle results
-        if angles1 and isinstance(angles1, dict):
-            result_lists["advancing_contact_angles_1"][q] = angles1.get(
-                "left", float("nan")
-            )
-            result_lists["receding_contact_angles_1"][q] = angles1.get(
-                "right", float("nan")
-            )
-        if angles2 and isinstance(angles2, dict):
-            result_lists["advancing_contact_angles_2"][q] = angles2.get(
-                "left", float("nan")
-            )
-            result_lists["receding_contact_angles_2"][q] = angles2.get(
-                "right", float("nan")
-            )
-
-        # Store center point and dimensions
-        self._store_center_point_and_dimensions(
-            result_lists, center_point1, rect_w1, rect_h1, q
-        )
-
-        # Store contact line data
-        self._store_contact_line_data(result_lists, result_images1, q)
 
     def _store_standard_mode_results(
         self,
@@ -1453,24 +1303,6 @@ class AnalysisCore(QObject):
             result_lists["center_points_px"][q] = [float("NaN"), float("NaN")]
             result_lists["center_points_mm"][q] = [float("NaN"), float("NaN")]
             result_lists["center_point"] = [float("NaN"), float("NaN")]
-
-    def _get_center_point_from_contour(self, contour):
-        """Return center point from contour moments."""
-        if contour is None:
-            return [float("nan"), float("nan")]
-        moment = cv2.moments(contour)
-        if moment["m00"] != 0 and moment["m00"] is not None:
-            cx = moment["m10"] / moment["m00"]
-            cy = moment["m01"] / moment["m00"]
-            return [cx, cy]
-        return [float("nan"), float("nan")]
-
-    def _get_rect_dimensions_from_contour(self, contour):
-        """Return width and height from bounding rect."""
-        if contour is None:
-            return float("nan"), float("nan")
-        x, y, w, h = cv2.boundingRect(contour)
-        return w, h
 
     def _ensure_rect_lists(self, result_lists, q):
         """Ensure rectangle dimension lists exist and are long enough.
@@ -1545,33 +1377,6 @@ class AnalysisCore(QObject):
         result_images["contact_status"] = contact_status
         result_images["left_contact_frame"] = result_lists["left_contact_frame"]
         result_images["right_contact_frame"] = result_lists["right_contact_frame"]
-
-    def _handle_progress_callback_channel(
-        self, progress_callback, q, files, result_lists, result_images
-    ):
-        """Handle progress callback for channel mode."""
-        if progress_callback:
-            continue_processing = progress_callback(
-                (q + 1) / len(files),
-                result_lists["advancing_contact_angles_1"][: q + 1],
-                result_lists["receding_contact_angles_1"][: q + 1],
-                result_lists["center_points_px"][: q + 1],
-                result_images,
-            )
-            self.image_processed.emit(q, result_images)
-
-            if continue_processing is False:
-                if progress_callback:
-                    progress_callback(
-                        1.0,
-                        result_lists["advancing_contact_angles_1"][: q + 1],
-                        result_lists["receding_contact_angles_1"][: q + 1],
-                        result_lists["center_points_px"][: q + 1],
-                        result_images,
-                    )
-                    self.image_processed.emit(q, result_images)
-                return True
-        return False
 
     def _handle_progress_callback_standard(
         self, progress_callback, q, files, result_lists, result_images, rect_w, rect_h

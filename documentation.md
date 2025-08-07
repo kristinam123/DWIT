@@ -30,12 +30,11 @@ python -m venv venv
 venv\Scripts\activate  # On Windows
 # or
 source venv/bin/activate  # On macOS/Linux
-pip install -r config/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### First Run
-- **Windows:** Double-click `DWIT.exe` (if available) for zero-setup.
-- **Any OS:** `python app.py` (after activating your venv)
+- **Any OS:** `python dwit.py` (after activating your venv)
 
 ---
 
@@ -106,7 +105,7 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 %%     class E3,G2,H2,I2 sediment,packing;
 ```
 
-![Flowchart](resources/screenshots/Flowchart_Analysis.png)
+![Flowchart](resources/Flowchart_Analysis.png)
 
 ### **Legend**
 - <span style="background-color:#ffd54f;color:#222;padding:2px 6px;border-radius:3px;">Channel/Contact Angle</span>: Steps E1, G1, H1, I1
@@ -118,13 +117,12 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 
 ## Project Structure
 
-- **UI:** All main UI in `src/widgets/` (Controller, Analysis, Table, etc.)
-- **Core:** Business logic in `src/core/` (cell, camera, analysis, table, pump, dosage)
+- **UI:** All main UI in `src/widgets.py` (Analysis, etc.)
+- **Core:** Business logic in `src/core.py` (cell, analysis)
 - **Helpers:** Image processing, analysis, and saving in `src/helpers/`
-- **Threads:** Background processing in `src/threads/` (keeps UI responsive)
-- **Utilities:** Port, ROI, camera helpers in `src/utilities/`
-- **Config/data:** Conversion tables, requirements in `config/`
-- **Test images:** Provided in `test_data/` (organized by experiment type)
+- **Threads:** Background processing in `src/threads.py` (keeps UI responsive)
+- **Utilities:** Port, ROI, helpers in `src/utilities/`
+- **Test images:** Provided in `tests/` (organized by experiment type)
 
 ---
 
@@ -150,57 +148,8 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 
 ## Core Application
 
-### `build_exe.py`
-**File Path**: `/build_exe.py`
-
-**Purpose**:
-Build script for creating a standalone executable of the Droplet Wall Interaction Tool (DWIT) using PyInstaller. Packages both the Python application and its resources into a single distributable file.
-
-**Key Features**:
-- Creates a single executable file (--onefile)
-- Bundles all required resources (icons, config files)
-- Includes all necessary Python modules and dependencies
-- Handles platform-specific path formatting (Windows/Unix)
-- Verifies successful executable creation
-
-**Main Function**:
-- `build_executable()`: Configures and runs PyInstaller with all required parameters
-  - Sets application name and icon
-  - Includes resource directories (resources/, config/)
-  - Explicitly imports all required modules
-  - Handles platform-specific path formatting
-
-**Dependencies**:
-- PyInstaller (must be installed)
-- All application dependencies (will be bundled)
-
-**Usage**:
-```bash
-python build_exe.py
-```
-
-**Output**:
-- Creates `dist/DWIT.exe` (Windows) or equivalent on other platforms
-- Outputs success/error messages to console
-
-**Integration**:
-- References all core application modules for inclusion
-- Bundles resources from `resources/` and `config/` directories
-- Includes all necessary Python packages and dependencies
-
-**Platform Support**:
-- Windows: Uses `;` as path separator
-- Unix/Mac: Uses `:` as path separator
-
-**Note**:
-- Requires PyInstaller to be installed (`pip install pyinstaller`)
-- All application dependencies must be installed before building
-- The build process may take several minutes to complete
-
----
-
-### `app.py`
-**File Path**: `/app.py`
+### `dwit.py`
+**File Path**: `/dwit.py`
 
 **Purpose**:
 The main entry point for the Droplet Wall Interaction Tool (DWIT) application. Initializes the Qt application, sets up global exception handling, manages application lifecycle, and handles window state persistence.
@@ -235,17 +184,17 @@ The main entry point for the Droplet Wall Interaction Tool (DWIT) application. I
 **Usage Example**:
 ```python
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
-    app.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
+    dwit = QApplication(sys.argv)
+    dwit.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
+    dwit.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
     
     # ... setup and run application ...
     
-    sys.exit(app.exec())
+    sys.exit(dwit.exec())
 ```
 
 **Integration**:
-- Initializes the main application window (`CellWindow` from `src.main.cell`)
+- Initializes the main application window (`DWIT` from `dwit.py`)
 - Integrates with the logging system through `logging_manager`
 - Manages application-wide settings and state
 
@@ -253,8 +202,8 @@ if __name__ == "__main__":
 
 ## Core Modules
 
-### `src/core/analysis_core.py`
-**File Path**: `/src/core/analysis_core.py`
+### `core.py`
+**File Path**: `/src/core.py`
 
 **Purpose**:
 Core module for droplet and experiment analysis in the Droplet Wall Interaction Tool. Provides the main analysis functionality including image processing, contact angle calculation, and data management.
@@ -323,433 +272,13 @@ results = analysis.get_results()
 
 **Integration**:
 - Used by the main application's analysis module
-- Interfaces with camera and data visualization components
+- Interfaces with data visualization components
 - Works with various analysis modes for different experimental setups
 
 **Maintenance Notes**:
 - Keep analysis algorithms updated with latest research
 - Maintain backward compatibility with saved settings
 - Add new analysis modes as needed for different experimental setups
-
----
-
-### `src/core/camera_core.py`
-**File Path**: `/src/core/camera_core.py`
-
-**Purpose**:
-Core module for camera control and image acquisition in the Droplet Wall Interaction Tool. Handles camera initialization, live feed, recording, and parameter management.
-
-**Key Components**:
-
-#### `CameraCore` Class
-Main class that handles all camera operations and state management.
-
-**Key Features**:
-- Camera initialization and configuration
-- Live video feed with adjustable parameters
-- High-speed recording with configurable settings
-- Region of Interest (ROI) selection
-- Hardware trigger support
-- Automatic parameter persistence
-
-**Properties**:
-- `exposure`: Camera exposure time in microseconds (1000-1000000)
-- `fps`: Frames per second for recording (1-100)
-- `period`: Time between frames in microseconds
-- `roi_x1`, `roi_x2`, `roi_y1`, `roi_y2`: Region of Interest coordinates
-- `is_recording`: Whether recording is in progress
-- `is_live`: Whether live feed is active
-
-**Signals**:
-- `image_updated`: Emitted when a new frame is available
-- `recording_state_changed`: Emitted when recording starts/stops
-- `live_state_changed`: Emitted when live feed starts/stops
-- `error_occurred`: Emitted with error message when an error occurs
-- `status_changed`: Emitted with status updates
-
-**Main Methods**:
-- `start_live()`: Start live video feed
-- `stop_live()`: Stop live video feed
-- `start_recording()`: Start recording video
-- `stop_recording()`: Stop recording and save video
-- `set_roi()`: Set the Region of Interest
-- `save_settings()`: Save current camera settings
-- `load_settings()`: Load saved camera settings
-
-**Dependencies**:
-- `XsCamera`: Proprietary camera SDK
-- NumPy for image data handling
-- PySide6 for GUI integration
-- PIL for image processing
-
-**Usage Example**:
-```python
-# Initialize the camera
-camera = CameraCore()
-
-# Connect to signals
-camera.image_updated.connect(update_ui)
-camera.error_occurred.connect(handle_error)
-
-# Configure camera settings
-camera.exposure = 5000  # 5ms exposure
-camera.fps = 30
-camera.set_roi(x1=100, y1=100, x2=2000, y2=1500)
-
-# Start live feed
-camera.start_live()
-
-# Start recording
-camera.start_recording("output_folder")
-time.sleep(10)  # Record for 10 seconds
-camera.stop_recording()
-
-# Clean up
-camera.stop_live()
-```
-
-**Integration**:
-- Used by the main application's camera module
-- Interfaces with recording and live feed threads
-- Provides real-time image data for visualization
-
-**Maintenance Notes**:
-- Keep camera SDK updated
-- Test with different camera models
-- Add support for additional camera features as needed
-- Handle camera disconnection/reconnection gracefully
-
----
-
-### `src/core/cell_core.py`
-**File Path**: `/src/core/cell_core.py`
-
-**Purpose**:
-Core module for experiment control and automation in the Droplet Wall Interaction Tool. Manages experimental workflows, parameter tracking, and coordination between different components.
-
-**Key Components**:
-
-#### `CellCore` Class
-Main class that handles experiment control and automation logic.
-
-**Key Features**:
-- Experiment workflow management
-- Parameter tracking and validation
-- Automated experiment sequences
-- Thread-safe operations
-- State persistence
-
-**Properties**:
-- `folder_path`: Path for saving experiment data
-- `current_substance`: Currently used substance
-- `current_trials`: Number of trials to perform
-- `current_cannula_diameter`: Diameter of the cannula in use
-- `current_tilt_angle`: Current tilt angle of the cell
-- `current_flow`: Current flow rate setting
-- `current_step`: Current step in the experiment sequence
-
-**Signals**:
-- `prompt_changed`: Emitted when user input is required
-- `progress_changed`: Emitted to update progress indicators
-- `folder_path_changed`: Emitted when the save folder changes
-- `error_occurred`: Emitted when an error is encountered
-- `status_changed`: Emitted with status updates
-
-**Main Methods**:
-- `start_experiment()`: Begin the experiment sequence
-- `stop_experiment()`: Safely stop the experiment
-- `set_parameters()`: Configure experiment parameters
-- `save_results()`: Save collected data to disk
-- `validate_parameters()`: Check if all required parameters are set
-
-**Dependencies**:
-- PySide6 for GUI integration
-- pandas for data management
-- Threading for background operations
-
-**Usage Example**:
-```python
-# Initialize the cell core
-cell = CellCore()
-
-# Configure experiment parameters
-cell.set_parameters(
-    substance="Water",
-    trials=3,
-    cannula_diameter=0.5,
-    tilt_angle=45.0,
-    flow_rate=10.0
-)
-
-# Set up signal connections
-cell.progress_changed.connect(update_progress_bar)
-cell.error_occurred.connect(show_error_message)
-
-# Start the experiment
-cell.start_experiment()
-
-# Later, to stop the experiment
-cell.stop_experiment()
-```
-
-**Integration**:
-- Coordinates with camera, pump, and dosage modules
-- Manages experiment workflow and timing
-- Handles data collection and storage
-
-**Maintenance Notes**:
-- Ensure thread safety for all operations
-- Validate all parameters before starting experiments
-- Implement proper error recovery mechanisms
-- Add logging for debugging and traceability
-
----
-
-### `src/core/dosage_core.py`
-**File Path**: `/src/core/dosage_core.py`
-
-**Purpose**:
-Core module for precise liquid dosage control in the Droplet Wall Interaction Tool. Manages communication with dosing hardware and ensures accurate liquid delivery.
-
-**Key Components**:
-
-#### `DosageCore` Class
-Main class that handles all dosage-related operations and hardware communication.
-
-**Key Features**:
-- Serial communication with dosing hardware
-- Precise control of dosing parameters
-- Port management and sharing
-- Settings persistence
-- Error handling and status reporting
-
-**Properties**:
-- `steps_value`: Number of steps for the dosing mechanism
-- `time_value`: Time duration for dosing operation
-- `com_port`: Active communication port
-- `widget_state`: Current state of the dosage widget
-
-**Signals**:
-- `steps_value_changed`: Emitted when steps value changes
-- `time_value_changed`: Emitted when time value changes
-- `status_changed`: Emitted with status updates
-- `error_occurred`: Emitted when an error is encountered
-- `port_changed`: Emitted when the communication port changes
-
-**Main Methods**:
-- `initialise()`: Initialize the dosing system
-- `refill()`: Refill the dosing mechanism
-- `stroke()`: Perform a single dosing stroke
-- `set_port()`: Configure the communication port
-- `save_settings()`: Save current settings to persistent storage
-- `load_settings()`: Load saved settings
-
-**Dependencies**:
-- PySerial for serial communication
-- PySide6 for GUI integration
-- Custom port management utilities
-
-**Usage Example**:
-```python
-# Initialize the dosage system
-dosage = DosageCore()
-
-# Configure the communication port
-dosage.set_port("COM3")
-
-# Set dosing parameters
-dosage.steps_value = 1000
-
-# Perform a dosing operation
-dosage.initialise()
-dosage.refill()
-dosage.stroke()
-
-# Handle status and error signals
-dosage.status_changed.connect(update_status)
-dosage.error_occurred.connect(handle_error)
-```
-
-**Integration**:
-- Works with the main application's experiment workflow
-- Coordinates with other hardware components
-- Provides real-time status updates to the UI
-
-**Maintenance Notes**:
-- Monitor and update serial communication protocols as needed
-- Ensure thread safety for all hardware operations
-- Implement proper error recovery for hardware failures
-- Keep documentation updated with any hardware-specific requirements
-
----
-
-### `src/core/pump_core.py`
-**File Path**: `/src/core/pump_core.py`
-
-**Purpose**:
-Core module for pump control in the Droplet Wall Interaction Tool. Manages communication with peristaltic pumps and flow rate control.
-
-**Key Components**:
-
-#### `PumpCore` Class
-Main class that handles all pump control operations and hardware communication.
-
-**Key Features**:
-- Serial communication with pump hardware
-- Flow rate control and monitoring
-- Port management and sharing
-- Settings persistence
-- Error handling and status reporting
-
-**Properties**:
-- `com_port`: Active communication port
-- `pump_value`: Current pump speed value (0-255)
-- `user_value`: User-friendly flow rate value (0-88)
-- `is_running`: Whether the pump is currently active
-
-**Signals**:
-- `port_changed`: Emitted when the communication port changes
-- `status_changed`: Emitted with status updates
-- `error_occurred`: Emitted when an error is encountered
-
-**Main Methods**:
-- `start_pump()`: Start the pump with current settings
-- `stop_pump()`: Stop the pump
-- `set_flow_rate()`: Set the desired flow rate
-- `get_available_ports()`: List available communication ports
-- `set_port()`: Configure the communication port
-- `save_settings()`: Save current settings to persistent storage
-- `load_settings()`: Load saved settings
-
-**Dependencies**:
-- PySerial for serial communication
-- PySide6 for GUI integration
-- Custom port management utilities
-
-**Usage Example**:
-```python
-# Initialize the pump controller
-pump = PumpCore()
-
-# Configure the communication port
-pump.set_port("COM4")
-
-# Set flow rate (0-88)
-pump.user_value = 50
-
-# Start the pump
-pump.start_pump()
-
-# Later, to stop the pump
-pump.stop_pump()
-
-# Handle status and error signals
-pump.status_changed.connect(update_status)
-pump.error_occurred.connect(handle_error)
-```
-
-**Integration**:
-- Works with the main application's experiment workflow
-- Coordinates with other hardware components
-- Provides real-time status updates to the UI
-
-**Maintenance Notes**:
-- Monitor and update serial communication protocols as needed
-- Ensure thread safety for all hardware operations
-- Implement proper error recovery for hardware failures
-- Keep documentation updated with any hardware-specific requirements
-- Test with different pump models and firmware versions
-
----
-
-### `src/core/table_core.py`
-**File Path**: `/src/core/table_core.py`
-
-**Purpose**:
-Core module for managing experiment parameters and calculations in the Droplet Wall Interaction Tool. Handles experiment design, parameter validation, and result management.
-
-**Key Components**:
-
-#### `TableCore` Class
-Main class that handles experiment parameter management and calculations.
-
-**Key Features**:
-- Experiment parameter management
-- Droplet diameter calculations
-- Flow rate and tilt angle configurations
-- Results storage and retrieval
-- Settings persistence
-
-**Properties**:
-- `substance`: Current test substance
-- `droplet_diameters`: List of target droplet diameters
-- `counter_flows`: List of counter flow rates
-- `tilts`: List of tilt angles for experiments
-- `trials`: Number of trials per experiment condition
-- `results`: Storage for experiment results
-
-**Signals**:
-- `substance_changed`: Emitted when substance changes
-- `droplet_diameters_changed`: Emitted when droplet diameters change
-- `counter_flows_changed`: Emitted when flow rates change
-- `tilts_changed`: Emitted when tilt angles change
-- `trials_changed`: Emitted when number of trials changes
-- `error_occurred`: Emitted when an error is encountered
-- `status_changed`: Emitted with status updates
-
-**Main Methods**:
-- `load_settings()`: Load saved settings from persistent storage
-- `save_setting()`: Save a setting to persistent storage
-- `calculate_parameters()`: Calculate experiment parameters
-- `generate_experiment_table()`: Generate experiment table
-- `add_result()`: Add a result to the results storage
-- `clear_results()`: Clear all stored results
-- `export_results()`: Export results to file
-
-**Dependencies**:
-- PySide6 for GUI integration
-- JSON for data serialization
-- Custom utilities for calculations
-
-**Usage Example**:
-```python
-# Initialize the table core
-table = TableCore()
-
-# Configure experiment parameters
-table.substance = "Water"
-table.droplet_diameters = "2, 5"
-table.counter_flows = "0, 18"
-table.tilts = "45, 60"
-table.trials = "10"
-
-# Generate experiment table
-table.generate_experiment_table()
-
-# Add results
-table.add_result({
-    'substance': 'Water',
-    'diameter': 2.0,
-    'flow_rate': 0.0,
-    'tilt': 45.0,
-    'result': 123.4
-})
-
-# Export results
-table.export_results("results.json")
-```
-
-**Integration**:
-- Works with the main application's experiment workflow
-- Coordinates with other core modules
-- Provides data for visualization and analysis
-
-**Maintenance Notes**:
-- Keep parameter validation up to date
-- Ensure backward compatibility with saved settings
-- Add new calculation methods as needed
-- Optimize performance for large result sets
-- Document any changes to the experiment table format
 
 ---
 
@@ -803,49 +332,6 @@ height = image.shape[0]
 cv2.line(image, (0, y_left), (image.shape[1], y_right), (0, 255, 0), 2)
 ```
 
-#### `find_dual_baseline(middle_src, baseline_offset=0, baseline_tf=False, manual_offset=0)`
-Finds baselines in both upper and lower regions for channel mode analysis.
-
-**Parameters**:
-- `middle_src`: Source image to process
-- `baseline_offset`: Manual offset adjustment for baseline
-- `baseline_tf`: If True, use manual offset only
-- `manual_offset`: Manual offset value when baseline_tf is True
-
-**Returns**:
-- `upper_baseline`: Y coordinate of baseline in upper region
-- `lower_baseline`: Y coordinate of baseline in lower region
-- `axis_y`: Y coordinate of the dividing axis in original image coordinates
-
-**Features**:
-- Specialized for channel mode analysis
-- Handles both automatic and manual baseline detection
-- Returns reference points for dual baseline analysis
-
-#### `_find_axisymmetric_axis_channel(image)`
-(Internal) Finds the axisymmetric axis for channel mode analysis.
-
-**Parameters**:
-- `image`: Input image (BGR format)
-
-**Returns**:
-- `axis_y`: Y-coordinate of the horizontal axisymmetric axis
-- `upper_region`: Image region above the axis
-- `lower_region`: Image region below the axis
-
-**Integration**:
-- Used by the analysis core for baseline detection
-- Supports both single and dual baseline analysis modes
-- Works with various image types and lighting conditions
-
-**Maintenance Notes**:
-- Keep edge detection parameters tuned for different image qualities
-- Consider adding more robust error handling for edge cases
-- Document any changes to the baseline detection algorithm
-- Add unit tests for different image scenarios
-
----
-
 ### `src/helpers/batch.py`
 **File Path**: `/src/helpers/batch.py`
 
@@ -865,8 +351,6 @@ Custom delegate for rendering folder items with progress bars in the batch proce
 
 **Methods**:
 - `set_progress(row, progress_value)`: Update progress for a specific row
-- `set_main_folder(index)`: Set which folder is the main folder
-- `paint()`: Custom painting of folder items with progress bars
 - `size_hint()`: Provide size hints for item rendering
 
 **Usage Example**:
@@ -877,9 +361,6 @@ list_view.setItemDelegate(delegate)
 
 # Update progress for an item
 delegate.set_progress(row_index, 75)  # 75% complete
-
-# Mark main folder
-delegate.set_main_folder(0)  # First folder is main
 ```
 
 #### `BatchProcessingWorker` Class
@@ -1007,7 +488,7 @@ Calculates contact angle using ellipse fitting.
 - Custom logging utilities
 
 **Integration**:
-- Used by analysis core for contact angle measurements
+- Used by core for contact angle measurements
 - Supports multiple calculation methods
 - Provides visualization capabilities
 - Integrates with image processing pipeline
@@ -1148,7 +629,7 @@ print(f"Status: {status}")
 ```
 
 **Maintenance Notes**:
-- Keep contact threshold configurable for different camera resolutions
+- Keep contact threshold configurable for different picture resolutions
 - Add more sophisticated contact detection if needed
 - Consider adding unit tests for different contact scenarios
 - Document any changes to the visualization style
@@ -1820,14 +1301,6 @@ Main function to save measurement results as plots and Excel files.
 - Handles different data types and formats
 - Includes error handling and logging
 
-#### `_analyze_wobble(output_dir, times, result_lists)`
-Analyzes the wobble (oscillation) of drops based on contour dimensions.
-
-**Parameters**:
-- `output_dir`: Directory to save results
-- `times`: Time values for x-axis
-- `result_lists`: Dictionary containing measurement results
-
 #### `_save_dataframe_to_excel(data_dict, output_dir, filename)`
 Saves a data dictionary to Excel with consistent formatting and error handling.
 
@@ -1841,21 +1314,11 @@ Saves a data dictionary to Excel with consistent formatting and error handling.
 - `_prepare_output_directory()`: Creates output directories
 - `_check_data_availability()`: Validates available data types
 - `_extract_center_coordinates()`: Processes center point data
-- `_process_and_filter_data()`: Cleans and filters measurement data
-- `_generate_plots()`: Creates various data visualizations
-- `_filter_valid_data()`: Removes invalid data points
-- `_perform_sine_fitting()`: Fits sine waves to oscillation data
-- `_fit_damped_sine()`: Implements damped sine wave fitting
-- `_create_wobble_plot()`: Generates wobble analysis plots
-- `_remove_outliers()`: Filters out statistical outliers
-- `_filter_time_series_data()`: Processes time series data
 
 **Dependencies**:
 - pandas for data manipulation
-- matplotlib for plotting
 - numpy for numerical operations
 - scipy for signal processing and curve fitting
-- xlsxwriter for Excel export
 - Custom logging and conversion utilities
 
 **Integration**:
@@ -1976,13 +1439,23 @@ print(f"First 5 velocities: {velocities[:5]} mm/s")
 
 ## Threading Modules
 
-### `src/threads/analysis_threads.py`
-**File Path**: `/src/threads/analysis_threads.py`
+### `src/threads.py`
+**File Path**: `/src/threads.py`
 
 **Purpose**:
 Provides a QThread implementation for running image analysis operations in a background thread, allowing for responsive UI during processing.
 
 **Key Classes**:
+
+#### `AutomatisationThread(QThread)`
+Thread for running automation tasks.
+
+**Signals**:
+- `prompt_signal(message)`: Emits status messages
+- `progress_signal(progress)`: Emits progress updates
+
+**Methods**:
+- `run()`: Main thread execution method
 
 #### `AnalysisThread(QThread)`
 Thread class for running analysis operations asynchronously.
@@ -2017,407 +1490,9 @@ analysis_thread.error_signal.connect(show_error)
 
 ---
 
-### `src/threads/camera_threads.py`
-**File Path**: `/src/threads/camera_threads.py`
-
-**Purpose**:
-Provides thread implementations for camera operations including live feed and recording.
-
-**Key Classes**:
-
-#### `StoppableThread(QObject)`
-Base class providing thread-safe stopping mechanism.
-
-**Methods**:
-- `stop()`: Request the thread to stop
-- `clear_stop()`: Clear the stop request
-- `is_stop_requested()`: Check if stop was requested
-
-#### `LiveFeedThread(QThread)`
-Thread for handling live camera feed.
-
-**Methods**:
-- `run()`: Main thread loop for live feed
-
-#### `RecordingThread(QThread)`
-Thread for handling camera recording.
-
-**Methods**:
-- `run()`: Main thread loop for recording
-
-**Usage Example**:
-```python
-# Start live feed
-live_thread = LiveFeedThread(camera_controller)
-live_thread.start()
-
-# Start recording
-recording_thread = RecordingThread(camera_controller)
-recording_thread.start()
-```
-
----
-
-### `src/threads/cell_threads.py`
-**File Path**: `/src/threads/cell_threads.py`
-
-**Purpose**:
-Provides thread implementations for automation and experiment control.
-
-**Key Classes**:
-
-#### `AutomatisationThread(QThread)`
-Thread for running automation tasks.
-
-**Signals**:
-- `prompt_signal(message)`: Emits status messages
-- `progress_signal(progress)`: Emits progress updates
-
-**Methods**:
-- `run()`: Main thread execution method
-
-#### `StopEvent(QObject)`
-Thread-safe event for stopping threads.
-
-**Methods**:
-- `set()`: Set the stop flag
-- `clear()`: Clear the stop flag
-- `is_set()`: Check if stop is requested
-- `wait(timeout)`: Block until stop is requested or timeout
-
-**Usage Example**:
-```python
-# Create and start automation thread
-auto_thread = AutomatisationThread(controller)
-auto_thread.prompt_signal.connect(update_status)
-auto_thread.progress_signal.connect(update_progress)
-auto_thread.start()
-```
-
----
-
-### `src/threads/dosage_threads.py`
-**File Path**: `/src/threads/dosage_threads.py`
-
-**Purpose**:
-Handles automated injection and refill operations in a separate thread.
-
-**Key Classes**:
-
-#### `DosageButtonThread(QThread)`
-Thread for handling dosage operations.
-
-**Signals**:
-- `finished()`: Emitted when operation completes
-- `steps_left_update(steps)`: Emitted with remaining steps
-
-**Methods**:
-- `run()`: Execute the dosage operation
-
-**Usage Example**:
-```python
-# Start dosage operation
-dosage_thread = DosageButtonThread(
-    controller=dosage_controller,
-    button_type="Inject",
-    steps_value=100,
-    time_value=5.0
-)
-dosage_thread.steps_left_update.connect(update_steps_ui)
-dosage_thread.start()
-```
-
-**Maintenance Notes**:
-- Ensure proper thread cleanup in all implementations
-- Add error handling for hardware communication
-- Document any changes to the thread interfaces
-- Add unit tests for thread safety
-- Consider adding timeout mechanisms for long-running operations
-- Document any hardware-specific requirements or limitations
-
----
-
-## Main Modules
-
-### `src/main/analysis.py`
-**File Path**: `/src/main/analysis.py`
-
-**Purpose**:
-Main application window for experiment analysis in the Droplet Wall Interaction Tool (DWIT). Provides a complete interface for analyzing droplet contact angles and other measurements.
-
-**Key Classes**:
-
-#### `AnalysisWindow(QWidget)`
-Main analysis window widget that integrates the analysis core with GUI components.
-
-**Key Methods**:
-- `__init__(parent, folder_path, analysis_mode)`: Initialize with optional parent, folder path, and analysis mode
-- `_extract_path(path_obj)`: Helper method to extract path from various path object types
-
-**Usage Example**:
-```python
-# Create and show analysis window
-analysis_window = AnalysisWindow(
-    parent=main_window,
-    folder_path="/path/to/images",
-    analysis_mode="contact_angle"
-)
-analysis_window.show()
-```
-
-**Dependencies**:
-- PySide6
-- src.core.analysis_core
-- src.widgets.analysis_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Can be used as a standalone application or embedded in a larger application
-- Emits signals for progress updates and completion
-- Handles errors gracefully with detailed logging
-
-**Maintenance Notes**:
-- Ensure proper cleanup of resources on window close
-- Add support for additional analysis modes as needed
-- Document any changes to the analysis workflow
-
----
-
-### `src/main/camera.py`
-**File Path**: `/src/main/camera.py`
-
-**Purpose**:
-Main application window for camera control, providing live feed and recording functionality.
-
-**Key Classes**:
-
-#### `CameraWindow(QWidget)`
-Main camera control window that integrates camera core with GUI components.
-
-**Key Methods**:
-- `__init__(parent)`: Initialize the camera window
-- `close_event(event)`: Handle window close with proper cleanup
-
-**Usage Example**:
-```python
-# Create and show camera window
-camera_window = CameraWindow()
-camera_window.show()
-```
-
-**Dependencies**:
-- PySide6
-- src.core.camera_core
-- src.widgets.camera_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Can be used standalone or as part of a larger application
-- Provides camera feed and recording controls
-- Handles camera initialization and cleanup
-
-**Maintenance Notes**:
-- Test with different camera hardware
-- Add support for additional camera features as needed
-- Document any camera-specific requirements
-
----
-
-### `src/main/cell.py`
-**File Path**: `/src/main/cell.py`
-
-**Purpose**:
-Main application window for the Droplet Wall Interaction Tool, serving as the central control interface.
-
-**Key Classes**:
-
-#### `CellWindow(QMainWindow)`
-Main application window that integrates all components of the DWIT system.
-
-**Key Methods**:
-- `__init__()`: Initialize the main application window
-- `get_icon_path()`: Helper to locate the application icon
-
-**Usage Example**:
-```python
-# Start the main application
-app = QApplication(sys.argv)
-window = CellWindow()
-window.show()
-sys.exit(app.exec())
-```
-
-**Dependencies**:
-- PySide6
-- src.core.cell_core
-- src.widgets.cell_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Serves as the main entry point for the application
-- Manages the overall application state
-- Coordinates between different modules
-
-**Maintenance Notes**:
-- Keep the UI responsive during operations
-- Add proper error handling for hardware connections
-- Document any changes to the main workflow
-
----
-
-### `src/main/dosage.py`
-**File Path**: `/src/main/dosage.py`
-
-**Purpose**:
-Main application window for dosage control in the DWIT system.
-
-**Key Classes**:
-
-#### `DosageWindow(QMainWindow)`
-Window for controlling dosage operations.
-
-**Key Methods**:
-- `__init__(parent)`: Initialize the dosage control window
-
-**Usage Example**:
-```python
-# Create and show dosage window
-dosage_window = DosageWindow()
-dosage_window.show()
-```
-
-**Dependencies**:
-- PySide6
-- src.core.dosage_core
-- src.widgets.dosage_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Can be used standalone or as part of the main application
-- Provides controls for precise liquid dosing
-- Handles communication with dosing hardware
-
-**Maintenance Notes**:
-- Test with different dosing hardware
-- Add calibration features if needed
-- Document any hardware-specific requirements
-
----
-
-### `src/main/pump.py`
-**File Path**: `/src/main/pump.py`
-
-**Purpose**:
-Main application window for pump control in the DWIT system.
-
-**Key Classes**:
-
-#### `PumpWindow(QMainWindow)`
-Window for controlling pump operations.
-
-**Key Methods**:
-- `__init__(parent)`: Initialize the pump control window
-
-**Usage Example**:
-```python
-# Create and show pump window
-pump_window = PumpWindow()
-pump_window.show()
-```
-
-**Dependencies**:
-- PySide6
-- src.core.pump_core
-- src.widgets.pump_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Can be used standalone or as part of the main application
-- Provides controls for pump operation
-- Handles communication with pump hardware
-
-**Maintenance Notes**:
-- Test with different pump models
-- Add safety features for pump operation
-- Document any pump-specific requirements
-
----
-
-### `src/main/table.py`
-**File Path**: `/src/main/table.py`
-
-**Purpose**:
-Main application window for experiment table management in the DWIT system.
-
-**Key Classes**:
-
-#### `TableWindow(QMainWindow)`
-Window for managing experiment tables and data.
-
-**Key Methods**:
-- `__init__(parent)`: Initialize the table window
-- `load_data()`: Load saved data and update the UI
-
-**Usage Example**:
-```python
-# Create and show table window
-table_window = TableWindow()
-table_window.show()
-```
-
-**Dependencies**:
-- PySide6
-- src.core.table_core
-- src.widgets.table_widgets
-- src.utilities.logging_manager
-
-**Integration Notes**:
-- Manages experiment data and parameters
-- Can be used standalone or as part of the main application
-- Provides a tabular interface for experiment management
-
-**Maintenance Notes**:
-- Ensure data persistence is reliable
-- Add import/export functionality if needed
-- Document any changes to the data model
-
----
-
 ## Utilities Modules
 
 This section documents the utility modules in the `src/utilities` directory that provide common functionality used throughout the application.
-
-### `conversion.py`
-**File Path**: `/src/utilities/conversion.py`
-
-**Purpose**:
-Provides utility functions for data type conversion and validation, particularly for handling experimental data in the Droplet Wall Interaction Tool.
-
-**Key Functions**:
-- `convert_to_float_list(values)`: Converts a list of mixed types to floats, handling non-numeric values by converting them to NaN.
-
-**Features**:
-- Robust error handling for type conversion
-- Detailed logging of conversion issues
-- Support for nested data structures
-
-**Dependencies**:
-- Python standard library
-- Custom utilities: `logging_manager.get_logger`
-
-**Usage Example**:
-```python
-values = ["1.2", 3.4, "invalid", [5, 6]]
-float_values = convert_to_float_list(values)
-# Returns: [1.2, 3.4, nan, nan]
-```
-
-**Integration**:
-- Used during data import and processing
-- Ensures consistent data types for analysis
-- Logs conversion issues for debugging
-
----
 
 ### `image.py`
 **File Path**: `/src/utilities/image.py`
@@ -2445,7 +1520,6 @@ Comprehensive image processing utilities for the Droplet Wall Interaction Tool, 
 
 **Integration**:
 - Used throughout the application for image manipulation
-- Integrates with the camera interface for live image processing
 - Supports both single images and batch processing
 
 ---
@@ -2519,34 +1593,6 @@ Provides overlay widgets that enhance the user interface with additional functio
 
 ---
 
-### `port.py`
-**File Path**: `/src/utilities/port.py`
-
-**Purpose**:
-Manages serial port communication for the Droplet Wall Interaction Tool, particularly for hardware integration.
-
-**Key Components**:
-- `SharedPortManager`: Singleton that tracks port usage across the application
-- `PortManager`: Handles low-level port operations
-
-**Features**:
-- Port discovery and management
-- Thread-safe port access
-- Automatic port status updates
-- Conflict resolution for shared resources
-
-**Dependencies**:
-- PySerial for serial communication
-- PySide6 for signals/slots
-- Custom utilities: `logging_manager.get_logger`
-
-**Integration**:
-- Used by hardware interface modules
-- Manages access to shared serial devices
-- Provides status updates to the UI
-
----
-
 ### `roi.py`
 **File Path**: `/src/utilities/roi.py`
 
@@ -2608,45 +1654,12 @@ def handle_roi_selected(self, left, top, right, bottom):
 - Maintain aspect ratio during image display
 - Support high-DPI displays
 
-#### `RoiVar` Class
-A simple variable class to mimic Tkinter variables for ROI dialog compatibility.
-
-**Methods**:
-- `get()`: Get the current value
-- `set(value)`: Set a new value
-
----
-
-### `XsCamera.py`
-**File Path**: `/src/utilities/XsCamera.py`
-
-**Purpose**:
-Python wrapper class for IDT cameras, providing a high-level interface for camera control and image acquisition in the Droplet Wall Interaction Tool.
-
-**Key Components**:
-- Camera model definitions and constants
-- Camera status and configuration enums
-- Low-level camera control functions
-- Error handling and logging
-
-**Dependencies**:
-- ctypes for C library interfacing
-- Custom utilities: `logging_manager.get_logger`
-
-**Integration**:
-- Used by camera control modules for hardware interaction
-- Provides a Pythonic interface to the native camera SDK
-- Handles camera initialization, configuration, and image acquisition
-
----
-
-
 ## Widgets Modules
 
 This section documents the widget modules that provide the graphical user interface components for the Droplet Wall Interaction Tool. These widgets are built using PySide6 and follow the Model-View-Controller (MVC) pattern.
 
-### `analysis_widgets.py`
-**File Path**: `/src/widgets/analysis_widgets.py`
+### `widgets.py`
+**File Path**: `/src/widgets.py`
 
 **Purpose**:
 Provides the main analysis interface for processing and visualizing droplet interaction experiments.
@@ -2676,156 +1689,3 @@ Provides the main analysis interface for processing and visualizing droplet inte
 - Integrates with the main application window
 
 ---
-
-### `camera_widgets.py`
-**File Path**: `/src/widgets/camera_widgets.py`
-
-**Purpose**:
-Provides the camera control interface for image acquisition in the Droplet Wall Interaction Tool.
-
-**Key Components**:
-- `CameraGUI`: Main camera control interface
-- Live feed display
-- Recording controls
-- Camera parameter adjustment
-
-**Features**:
-- Live video feed display
-- Image capture and recording
-- Camera parameter control (exposure, gain, etc.)
-- ROI (Region of Interest) selection
-- Frame rate control
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom camera interface utilities
-- Custom utilities: `logging_manager`
-
-**Integration**:
-- Connects to camera hardware interface
-- Provides captured frames to the analysis pipeline
-- Integrates with the main application window
-
----
-
-### `cell_widgets.py`
-**File Path**: `/src/widgets/cell_widgets.py`
-
-**Purpose**:
-Main application window and navigation interface for the Droplet Wall Interaction Tool.
-
-**Key Components**:
-- `CellGUI`: Main application window
-- Navigation controls
-- Log overlay
-- Status display
-
-**Features**:
-- Unified interface for all tool functionality
-- Tab-based navigation between modules
-- Log display overlay
-- Status indicators
-- Responsive layout
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom utilities: `logging_manager`, `overlays`
-- All other widget modules
-
-**Integration**:
-- Serves as the main container for all application widgets
-- Manages navigation between different tool modules
-- Provides centralized status and logging
-
----
-
-### `dosage_widgets.py`
-**File Path**: `/src/widgets/dosage_widgets.py`
-
-**Purpose**:
-Provides the interface for controlling liquid dosage in experiments.
-
-**Key Components**:
-- `DosageGUI`: Main dosage control interface
-- Port selection
-- Dosage parameter controls
-- Operation buttons
-
-**Features**:
-- Precise liquid volume control
-- Multiple operation modes (init, refill, inject)
-- Port management
-- Status feedback
-- Safety controls
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom utilities: `logging_manager`
-- Hardware interface for pump control
-
-**Integration**:
-- Connects to dosage controller
-- Provides user interface for liquid handling
-- Integrates with the main application window
-
----
-
-### `pump_widgets.py`
-**File Path**: `/src/widgets/pump_widgets.py`
-
-**Purpose**:
-Provides the interface for controlling pumps in the Droplet Wall Interaction Tool.
-
-**Key Components**:
-- `PumpGUI`: Main pump control interface
-- Flow rate controls
-- Operation modes
-- Status indicators
-
-**Features**:
-- Flow rate control in L/h or Hz
-- Multiple pump operation modes
-- Real-time status updates
-- Port management
-- Safety limits and validation
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom utilities: `logging_manager`
-- Hardware interface for pump control
-
-**Integration**:
-- Connects to pump controller
-- Provides user interface for pump operation
-- Integrates with the main application window
-
----
-
-### `table_widgets.py`
-**File Path**: `/src/widgets/table_widgets.py`
-
-**Purpose**:
-Provides the interface for managing experiment parameters and results in a tabular format.
-
-**Key Components**:
-- `TableGUI`: Main table interface
-- Experiment parameter configuration
-- Result display
-- Import/export functionality
-
-**Features**:
-- Tabular data display
-- Editable parameters
-- Data validation
-- Import/export to CSV/Excel
-- Sorting and filtering
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom utilities: `logging_manager`
-- Data processing utilities
-
-**Integration**:
-- Connects to table controller
-- Displays and manages experiment parameters
-- Integrates with the main application window

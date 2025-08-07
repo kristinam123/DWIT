@@ -1,49 +1,156 @@
-"""Cell GUI widgets.
+"""Application entry point.
 
-For experiment setup and control in Droplet Wall Interaction Tool (DWIT).
+For launching Droplet Wall Interaction Tool (DWIT).
 """
 
-from PySide6.QtCore import QSettings, Qt, Slot
-from PySide6.QtGui import QFont
+import gc
+import os
+import sys
+import traceback
+from typing import Any, Optional
+
+from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QFileDialog,
+    QApplication,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QProgressBar,
+    QMainWindow,
     QPushButton,
-    QSplitter,
     QStackedWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from src.main.analysis import AnalysisWindow
-from src.main.camera import CameraWindow
-from src.main.dosage import DosageWindow
-from src.main.pump import PumpWindow
-from src.main.table import TableWindow
+from src.core import AnalysisCore
 from src.utilities.logging_manager import get_logger, logging_manager
 from src.utilities.overlays import LogOverlay, NavigationOverlay
+from src.widgets import AnalysisGUI
 
 # Setup logger for this module
 logger = get_logger(__name__)
 
 
+class AnalysisWindow(QWidget):
+    """Analysis application.
+
+    This widget integrates the analysis core with the GUI components,
+    providing a complete interface for analyzing droplet contact angles.
+    """
+
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        folder_path: Optional[str] = None,
+        analysis_mode: str = "contact_angle",
+    ):
+        """Initialize Analysis widget.
+
+        Args:
+        ----
+            parent: Parent widget
+            folder_path: Path to folder containing images for analysis
+            analysis_mode: The mode of analysis (e.g., "contact_angle",
+                "free:_sedimentation", etc.).
+
+        """
+        super().__init__(parent)
+        logger.debug(f"Initializing AnalysisWindow with mode: {analysis_mode}")
+
+        try:
+            self.setWindowTitle(f"Analysis - {analysis_mode.replace('_', ' ').title()}")
+            self.analysis_mode = analysis_mode
+
+            # Main layout with no margins for modern look
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+
+            # Extract and validate path
+            self.folder_path = self._extract_path(folder_path)
+
+            # Initialize controller and GUI
+            self.controller = AnalysisCore(
+                self.folder_path, analysis_mode=self.analysis_mode
+            )
+
+            self.gui = AnalysisGUI(self, self.controller)
+
+            # Add GUI to layout
+            layout.addWidget(self.gui)
+            logger.debug("AnalysisWindow UI components initialized and added to layout")
+
+        except Exception as e:
+            # Handle initialization errors
+            logger.error(f"Error initializing AnalysisWindow: {e}")
+            logger.error(f"Analysis mode: {analysis_mode}")
+            logger.error(f"Folder path: {folder_path}")
+            raise
+
+    def _extract_path(self, path_obj: Any) -> Optional[str]:
+        """Extract path from various path object types.
+
+        Handles path objects that might be wrapper objects with get/value methods,
+        or direct string paths.
+
+        Args:
+        ----
+            path_obj: Path object to extract from.
+
+        Returns:
+        -------
+            Extracted path as string, or None if invalid.
+
+        """
+        if path_obj is None:
+            return None
+
+        # Check for object type and protect against non-path objects
+        if hasattr(path_obj, "__class__"):
+            logger.warning(
+                "Path object has __class__ attribute, might not be a path object"
+            )
+            return None
+
+        if hasattr(path_obj, "get"):
+            extracted_path = path_obj.get()
+            return extracted_path
+        elif hasattr(path_obj, "value"):
+            extracted_path = path_obj.value
+            return extracted_path
+
+        # Ensure path is a string
+        try:
+            path_str = str(path_obj)
+
+            # Verify this looks like a valid path
+            if os.path.exists(path_str) or os.path.exists(os.path.dirname(path_str)):
+                logger.info(f"Valid path extracted: {path_str}")
+                return path_str
+            else:
+                logger.warning(f"Path does not exist: {path_str}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error converting path object to string: {e}")
+            return None
+
+
 class CellGUI(QWidget):
     """Modern Droplet Wall Interaction Tool (DWIT) control interface."""
 
-    def __init__(self, parent, controller):
-        """Initialize the CellGUI with parent and controller."""
+    def __init__(self, parent):
+        """Initialize the CellGUI with parent."""
         logger.debug("Initializing CellGUI")
         super().__init__(parent)
-        self.controller = controller
-        self.folder_path = controller.folder_path
 
         # Initialize overlays
         self.log_overlay = LogOverlay(self)
         self.nav_overlay = NavigationOverlay(self)
+
+        # Connect navigation overlay's page selection to page change
+        if hasattr(self.nav_overlay, "page_selected"):
+            self.nav_overlay.page_selected.connect(self._apply_selected_navigation)
 
         # Connect logging manager to log overlay
         logging_manager.set_log_overlay(self.log_overlay)
@@ -95,12 +202,6 @@ class CellGUI(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self._main_container)
 
-        # Setup controller references
-        self._setup_controller_references()
-        # Connect controller signals
-        self.controller.prompt_changed.connect(self._update_prompt)
-        self.controller.progress_changed.connect(self._update_progress)
-
         # Update navigation button to show the correct initial page
         if hasattr(self, "_initial_page_index"):
             self._update_nav_button_text(self._initial_page_index)
@@ -112,22 +213,18 @@ class CellGUI(QWidget):
             "Displays the main content area for each experiment or control page."
         )
         self.page_names = [
-            "Controllers",
             "Free Sedimentation",
             "Contact Angle",
             "Channel",
             "Structured Packing",
-            "Table",
         ]
         # Store page widgets and their init functions
         self._page_widgets = [None] * len(self.page_names)
         self._page_inits = [
-            self._init_controller_page,
             self._init_free_sedimentation_page,
             self._init_contact_angle_page,
             self._init_channel_page,
             self._init_structured_packing_page,
-            self._init_table_page,
         ]
         # Add empty widgets as placeholders
         for _ in self.page_names:
@@ -147,127 +244,6 @@ class CellGUI(QWidget):
         self._initial_page_index = last_page_index
         self._change_page(last_page_index)
         return self.content
-
-    def _init_controller_page(self):
-        """Initialize the controller page with camera, pump, and dosage widgets."""
-        controller_page = QWidget()
-        controller_layout = QVBoxLayout(controller_page)
-        controller_layout.setContentsMargins(0, 0, 0, 0)
-        controller_layout.setSpacing(8)
-
-        # Add workspace group to the controller page
-        workspace_group = QWidget()
-        workspace_layout = QVBoxLayout(workspace_group)
-        workspace_layout.setContentsMargins(0, 0, 0, 0)
-        workspace_layout.setSpacing(5)
-
-        # Status/prompt area
-        self.prompt = QLabel("Ready to start")
-        self.prompt.setAlignment(Qt.AlignCenter)
-        self.prompt.setMinimumHeight(24)
-        self.prompt.setWordWrap(True)
-        self.prompt.setToolTip("Displays the current status or prompt message.")
-        prompt_font = QFont()
-        prompt_font.setPointSize(10)
-        self.prompt.setFont(prompt_font)
-        workspace_layout.addWidget(self.prompt)
-
-        # Add folder selection to a horizontal layout
-        folder_layout = QHBoxLayout()
-        folder_label = QLabel("Working Directory:")
-        folder_label.setMaximumWidth(100)
-        folder_label.setToolTip(
-            "Shows the current working directory for experiment data."
-        )
-        self.folder_entry = QLineEdit()
-        self.folder_entry.setText(self.controller.folder_path)
-        self.folder_entry.setReadOnly(True)
-        self.folder_entry.setToolTip(
-            "Displays the current working directory. "
-            "Use the Browse button to change it."
-        )
-        self.browse_button = QPushButton("Browse...")
-        self.browse_button.setMaximumWidth(70)
-        self.browse_button.setToolTip("Browse for a working directory.")
-        self.browse_button.clicked.connect(self.select_folder)
-
-        folder_layout.addWidget(folder_label)
-        folder_layout.addWidget(self.folder_entry, 1)
-        folder_layout.addWidget(self.browse_button)
-        workspace_layout.addLayout(folder_layout)
-
-        # Controls section in the same group
-        controls_layout = QHBoxLayout()
-        # Start/Stop button
-        self.start_button = QPushButton("Start")
-        self.start_button.setMinimumHeight(30)
-        self.start_button.setToolTip("Start or stop the automation process.")
-        self.start_button.clicked.connect(self._toggle_running)
-
-        # Progress bar
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 100)
-        self.progress.setValue(0)
-        self.progress.setToolTip("Shows the progress of the current operation.")
-
-        controls_layout.addWidget(self.start_button)
-        controls_layout.addWidget(self.progress, 1)
-        workspace_layout.addLayout(controls_layout)
-
-        # Add workspace group to controller layout
-        controller_layout.addWidget(workspace_group)
-
-        # Create horizontal splitter for better arrangement
-        controller_splitter = QSplitter(Qt.Vertical)
-
-        # Camera section
-        camera_group = QWidget()
-        camera_layout = QVBoxLayout(camera_group)
-        camera_layout.setContentsMargins(0, 0, 0, 0)
-        self.camera_window = CameraWindow(self)
-        camera_layout.addWidget(self.camera_window.gui)
-        controller_splitter.addWidget(camera_group)
-
-        # Remove lower_splitter (QSplitter) and use a fixed QHBoxLayout
-        # for pump and dosage
-        lower_section = QWidget()
-        lower_layout = QHBoxLayout(lower_section)
-        lower_layout.setContentsMargins(0, 0, 0, 0)
-        lower_layout.setSpacing(0)
-
-        # Pump section
-        pump_group = QWidget()
-        pump_layout = QVBoxLayout(pump_group)
-        pump_layout.setContentsMargins(0, 0, 0, 0)
-        self.pump_window = PumpWindow(self)
-        pump_layout.addWidget(self.pump_window.gui)
-        pump_group.setMinimumWidth(350)
-        lower_layout.addWidget(pump_group)
-
-        # Dosage section
-        dosage_group = QWidget()
-        dosage_layout = QVBoxLayout(dosage_group)
-        dosage_layout.setContentsMargins(0, 0, 0, 0)
-        self.dosage_window = DosageWindow(self)
-        dosage_layout.addWidget(self.dosage_window.gui)
-        dosage_group.setMinimumWidth(350)
-        lower_layout.addWidget(dosage_group)
-
-        # Add lower_section to controller_splitter (vertical)
-        controller_splitter.addWidget(lower_section)
-
-        controller_layout.addWidget(controller_splitter)
-
-        # Set up controller references for automation (now that components exist)
-        self.controller.camera_gui = self.camera_window.gui
-        self.controller.pump_gui = self.pump_window.gui
-        self.controller.dosage_gui = self.dosage_window.gui
-
-        # Set up port refresh callbacks
-        self.pump_window.gui.parent_refresh_callback = self.refresh_all_ports
-        self.dosage_window.gui.parent_refresh_callback = self.refresh_all_ports
-
-        return controller_page
 
     def _init_free_sedimentation_page(self):
         """Initialize the free sedimentation analysis page."""
@@ -311,16 +287,6 @@ class CellGUI(QWidget):
             page, analysis_mode="structured_packing"
         )
         layout.addWidget(self.structured_packing_analysis_window)
-        return page
-
-    def _init_table_page(self):
-        """Initialize the table page."""
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.table_window = TableWindow(self)
-        layout.addWidget(self.table_window.gui)
-        self.controller.table_gui = self.table_window
         return page
 
     def _show_terminal_overlay(self):
@@ -405,29 +371,6 @@ class CellGUI(QWidget):
         """Apply the selected navigation page."""
         self._change_page(page_index)
 
-    def _setup_controller_references(self):
-        """Set up references to all components in the controller."""
-        # Store GUI references for automation controller (used in cell_core.py)
-        pass
-
-    def refresh_all_ports(self):
-        """Refresh ports in both dosage and pump widgets."""
-        # Get ports from shared port manager to ensure both widgets see the same list
-        try:
-            # Only refresh if the windows exist (controller page has been initialized)
-            if hasattr(self, "pump_window") and hasattr(self, "dosage_window"):
-                # Get ports from pump controller
-                pump_ports = self.pump_window.gui.controller.get_available_ports()
-                self.pump_window.gui.refresh_ports_internal(pump_ports)
-
-                # Get ports from dosage controller
-                dosage_ports, _ = self.dosage_window.gui.controller.populate_ports()
-                self.dosage_window.gui.refresh_ports_internal(dosage_ports)
-
-        except Exception as e:
-            logger.error(f"Error refreshing ports: {e}")
-            pass
-
     def _change_page(self, index):
         """Change the active page and update navigation button.
 
@@ -458,6 +401,12 @@ class CellGUI(QWidget):
         # Update navigation button text to show current page
         self._update_nav_button_text(index)
 
+        # Update main window title to reflect current analysis mode
+        main_window = self.window() if hasattr(self, "window") else None
+        if main_window is not None:
+            mode_name = self.page_names[index]
+            main_window.setWindowTitle(f"{mode_name} DWIT")
+
     def _update_nav_button_text(self, index):
         """Update the navigation button text to show the current page."""
         if hasattr(self, "nav_button") and 0 <= index < len(self.page_names):
@@ -466,64 +415,6 @@ class CellGUI(QWidget):
             self.nav_button.setToolTip(
                 f"Currently displaying: {page_name}. Click to select a different page."
             )
-
-    @Slot()
-    def select_folder(self):
-        """Open folder selection dialog."""
-        logger.info("Opening folder selection dialog")
-        folder_selected = QFileDialog.getExistingDirectory(
-            self, "Select Working Directory", self.controller.folder_path or ""
-        )
-        if folder_selected:
-            logger.info(f"Folder selected: {folder_selected}")
-            # Update folder path in controller
-            self.controller.select_folder(folder_selected)
-            self.folder_entry.setText(folder_selected)
-        else:
-            pass
-
-    @Slot()
-    def automatisation(self):
-        """Start the automation process."""
-        logger.info("Starting automation process")
-        # Check if table has data
-        if not hasattr(self.table_window, "result") or not self.table_window.results:
-            logger.warning("No table data available for automation")
-            return
-
-        # Disable the start button while automation is running
-        #         self.start_button.setEnabled(False)
-        # Start the automation thread
-        logger.info("Starting automation thread")
-        self.controller.start_automation()
-
-    @Slot(str)
-    def _update_prompt(self, message):
-        """Update the prompt message."""
-        # Only update if the controller page (and prompt widget) has been initialized
-        if hasattr(self, "prompt"):
-            self.prompt.setText(message)
-
-    @Slot(int)
-    def _update_progress(self, value):
-        """Update the progress bar."""
-        # Only update if the controller page (and progress widget) has been initialized
-        if hasattr(self, "progress"):
-            self.progress.setValue(value)
-
-    @Slot()
-    def _toggle_running(self):
-        """Handle start/stop button clicks."""
-        if hasattr(self.controller, "start_automation"):
-            if self.start_button.text() == "Start":
-                self.automatisation()
-                self.start_button.setText("Stop")
-            else:
-                if hasattr(self.controller, "stop_automation"):
-                    self.controller.stop_automation()
-                self.start_button.setText("Start")
-        else:
-            pass
 
     def _create_bottom_controls(self):
         """Create bottom controls with navigation dropdown and ROI selection."""
@@ -552,9 +443,10 @@ class CellGUI(QWidget):
         bottom_layout.addStretch(1)
 
         # Navigation selection button (right side) - shows current page name
-        self.nav_button = QPushButton("Controllers ▲")  # Default to first page
+        self.nav_button = QPushButton("Free Sedimentation ▲")  # Default to first page
         self.nav_button.setToolTip(
-            "Currently displaying: Controllers. Click to select a different page."
+            "Currently displaying: Free Sedimentation."
+            " Click to select a different page."
         )
         self.nav_button.clicked.connect(self._open_navigation_selector)
 
@@ -572,3 +464,166 @@ class CellGUI(QWidget):
 
         # Call parent implementation to ensure normal behavior
         super().mousePressEvent(event)
+
+
+class DWIT(QMainWindow):
+    """Main window for the Droplet Wall Interaction Tool (DWIT)."""
+
+    def __init__(self):
+        """Initialize the DWIT."""
+        super().__init__()
+        logger.debug("Initializing DWIT (Main Application Window)")
+
+        # Set initial window title based on the first page
+        if hasattr(self, "gui") and hasattr(self.gui, "page_names"):
+            initial_mode = self.gui.page_names[
+                getattr(self.gui, "_initial_page_index", 0)
+            ]
+            self.setWindowTitle(f"{initial_mode} DWIT")
+        else:
+            self.setWindowTitle("DWIT")
+
+        # Set application icon
+        icon_path = os.path.join(
+            os.path.dirname(__file__), "resources", "icons", "avt.ico"
+        )
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        else:
+            logger.warning("No application icon set - icon file not found")
+
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Create controller and UI
+        try:
+            self.gui = CellGUI(central_widget)
+
+        except Exception as e:
+            logger.error(f"Error creating cell controller or GUI: {e}")
+            raise
+
+        # Set up layout
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.gui)
+        logger.debug("DWIT UI components initialized and added to layout")
+
+
+def cleanup_logging():
+    """Restore original stdout/stderr streams on dwit exit."""
+    logger.debug("Attempting to clean up logging streams...")
+    try:
+        if (
+            hasattr(logging_manager, "stdout_capture")
+            and logging_manager.stdout_capture.original_stream
+        ):
+            sys.stdout = logging_manager.stdout_capture.original_stream
+        if (
+            hasattr(logging_manager, "stderr_capture")
+            and logging_manager.stderr_capture.original_stream
+        ):
+            sys.stderr = logging_manager.stderr_capture.original_stream
+        logger.debug("Logging cleanup completed")
+    except Exception as e:
+        logger.error(f"Error during logging cleanup: {e}")
+
+
+def setup_memory_management():
+    """Set up periodic garbage collection to prevent memory leaks."""
+
+    def force_gc():
+        """Force garbage collection and log if significant cleanup occurred."""
+        collected = gc.collect()
+        if collected > 100:  # Only log if significant cleanup
+            logger.debug(f"Garbage collector freed {collected} objects")
+
+    # Set up timer for periodic garbage collection
+    gc_timer = QTimer()
+    gc_timer.timeout.connect(force_gc)
+    gc_timer.start(30000)  # Every 30 seconds
+    return gc_timer
+
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """Global exception handler to catch uncaught exceptions."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    error_msg = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    logger.error(f"Uncaught exception: {error_msg}")
+
+    # Try to continue running if possible
+    logger.error("Application encountered an error but attempting to continue...")
+
+
+if __name__ == "__main__":
+    logger.info("Application starting")
+    # Set up global exception handler
+    sys.excepthook = handle_exception
+
+    # Enable more aggressive garbage collection
+    gc.set_threshold(700, 10, 10)  # More frequent collection
+
+    try:
+        dwit = QApplication(sys.argv)
+        # Set application metadata for QSettings
+        dwit.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
+        dwit.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
+
+        # Set up memory management
+        gc_timer = setup_memory_management()
+
+        # Initialize logging manager settings after QApplication is properly set up
+        logging_manager.initialize_settings()
+
+        # Create and show the main window
+        logger.debug("Creating main window...")
+        window = DWIT()
+        logger.debug("Main window created successfully")
+
+        # Restore previous window geometry if available
+        settings = QSettings()
+        if settings.contains("geometry"):
+            try:
+                window.restoreGeometry(settings.value("geometry"))
+            except Exception as e:
+                logger.warning(f"Could not restore geometry: {e}")
+        if settings.contains("windowState"):
+            try:
+                window.restoreState(settings.value("windowState"))
+            except Exception as e:
+                logger.warning(f"Could not restore window state: {e}")
+
+        # Connect close event to save geometry
+        dwit.aboutToQuit.connect(
+            lambda: settings.setValue("geometry", window.saveGeometry())
+        )
+        dwit.aboutToQuit.connect(
+            lambda: settings.setValue("windowState", window.saveState())
+        )
+
+        # Connect close event to cleanup logging
+        dwit.aboutToQuit.connect(cleanup_logging)
+
+        # Cleanup timer on quit
+        dwit.aboutToQuit.connect(gc_timer.stop)
+
+        window.show()
+        logger.debug("Droplet Wall Interaction Tool (DWIT) main window displayed")
+
+        # Start the event loop
+        logger.debug("Starting Qt event loop...")
+        exit_code = dwit.exec()
+
+        logger.info("Application shutting down")
+        logger.debug("Application exiting normally")
+        sys.exit(exit_code)
+
+    except Exception as e:
+        logger.error(f"Fatal error during application startup: {e}")
+        logger.info("Application encountered an unrecoverable error and will exit")
+        traceback.print_exc()
+        sys.exit(1)

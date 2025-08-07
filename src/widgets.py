@@ -40,7 +40,7 @@ from src.helpers.batch import BatchProcessingWorker, FolderItemDelegate
 from src.helpers.preview import show_preview
 from src.helpers.save_results import save_results
 from src.helpers.velocity import calculate_velocities
-from src.threads.analysis_threads import AnalysisThread
+from src.threads import AnalysisThread
 from src.utilities.image import create_background_image, crop_image, rotate_image
 from src.utilities.logging_manager import get_logger
 from src.utilities.roi import ROISelector
@@ -128,7 +128,7 @@ class AnalysisGUI(QWidget):
         """Trigger auto-preview only if this analysis widget is currently visible.
 
         This prevents triggering previews for analysis modes that are not
-        currently displayed when the app starts.
+        currently displayed when dwit starts.
         """
         # Check if this widget is visible by checking if it's the current page
         if self.isVisible() and self.parent():
@@ -2558,17 +2558,12 @@ class AnalysisGUI(QWidget):
     def _update_main_folder_highlight(self):
         """Update the highlighting of the main folder in the list."""
         main_path = self.controller.main_folder_path
-        main_index = -1
 
         # Find the index of the main folder in the list
         for i in range(self.folder_list.count()):
             # Compare with the full path stored in data, not the display text
             if self.folder_list.item(i).data(Qt.UserRole) == main_path:
-                main_index = i
                 break
-
-        # Update the delegate's main folder index
-        self.folder_delegate.set_main_folder(main_index)
 
         # Update the list display
         self.folder_list.viewport().update()
