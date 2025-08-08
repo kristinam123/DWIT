@@ -45,8 +45,8 @@ from src.helpers.drawing import (
 )
 from src.helpers.initialisation import initiate_run, start_run
 from src.helpers.intersection import find_intersection_points
-from src.helpers.packing import find_vertical_lines
 from src.helpers.save_results import save_results
+from src.helpers.structured_packing import find_vertical_lines
 from src.helpers.velocity import calculate_velocities
 from src.utilities.image import (
     convert_videos_to_images,
@@ -271,13 +271,6 @@ class AnalysisCore(QObject):
             self.save_setting("folderPath", value)
             # Update output path
             self.output_path = value + "/Output" if value else ""
-            # Create output directory if it doesn't exist and path is valid
-            if self.output_path and isinstance(self.output_path, str):
-                try:
-                    os.makedirs(self.output_path, exist_ok=True)
-                except Exception as e:
-                    logger.error(f"Failed to create output directory: {e}")
-                    pass
             self.folder_path_changed.emit(value)
 
     def set_baseline_tf(self, value: bool) -> None:

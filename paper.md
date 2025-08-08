@@ -1,5 +1,5 @@
 ---
-title: 'Droplet Wall Interaction Tool: A Python Platform for Automated Droplet Experiments and Qualitative Image Analysis'
+title: 'Droplet Wall Interaction Tool: A Python Platform for Droplet Experiments and Qualitative Image Analysis'
 tags:
   - Python
   - laboratory automation
@@ -27,13 +27,13 @@ bibliography: paper.bib
 
 # Summary
 
-Droplet Wall Interaction Tool is a research-oriented, Python-based platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis. Droplet Wall Interaction Tool integrates advanced image processing within a modern PySide6 (Qt for Python) interface. Its modular architecture and batch processing capabilities enable high-throughput, reproducible experiments and facilitate rapid development of new workflows for surface science and fluid dynamics research.
+Droplet Wall Interaction Tool is a research-oriented, Python-based platform for qualitative image analysis of droplet experiments. Designed for academic and scientific workflows, it emphasizes reproducible batch processing and workflow automation for image analysis rather than hardware control. It integrates advanced image processing within a modern PySide6 (Qt for Python) interface and builds on NumPy, SciPy, pandas, and OpenCV [@NumPy; @SciPy; @Pandas; @OpenCV; @PySide6]. Its modular architecture and batch processing capabilities enable high-throughput, reproducible analyses and facilitate rapid development of new workflows for surface science and fluid dynamics research.
 
 # Statement of need
 
 Automated droplet experimentation and qualitative image analysis are essential in surface science, microfluidics, and materials research. Existing tools often lack integration, reproducibility, or extensibility. Droplet Wall Interaction Tool addresses these gaps by providing:
 - Robust batch image analysis, including contact angle measurement, and velocity analysis.
-- Interactive experiment planning, calculation, and export of experiment matrices.
+- Visual ROI selection and baseline adjustment with both numeric and graphical controls.
 - Visual and numeric interfaces for region-of-interest (ROI) selection and baseline adjustment.
 - Real-time logging and status indicators for transparency and troubleshooting.
 
@@ -45,10 +45,12 @@ Droplet Wall Interaction Tool is designed for researchers who require a flexible
 - **Analysis Tab:** Batch image processing, contact angle measurement.
 - **Visual ROI & Baseline:** Graphical and numeric interfaces for ROI selection and baseline adjustment.
 - **Batch Processing:** Analysis of multiple datasets with progress visualization.
-- **Wobble & Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.
+- **Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.
 - **Log Overlay:** Real-time logging with error/warning indicators.
 - **Manual Testing:** Includes curated test images for rapid validation.
 - **Modern UI:** Built with PySide6 for cross-platform compatibility and performance.
+ - **Modes:** free_sedimentation, contact_angle, channel, structured_packing (lazy-initialized in the app entrypoint).
+ - **Channel mode note:** Automatic baseline detection is currently disabled; channel overlays/metrics require externally provided baselines.
 
 ## Architecture
 
@@ -64,7 +66,7 @@ Droplet Wall Interaction Tool follows a modular architecture:
   Threads/Signals   Data/Params/State   Results/Exports
 ```
 
-The application is organized into core logic (`src/core.py`), UI (`src/widgets.py`), helpers for image processing and analysis (`src/helpers/`), and utilities for hardware management and threading.
+The application is organized into core logic (`src/core.py`), UI (`src/widgets.py`), helpers for image processing and analysis (`src/helpers/`), utilities (`src/utilities/` for logging, image ops, overlays, ROI), and background threads (`src/threads.py`).
 
 ## Image Analysis Pipeline
 
@@ -80,19 +82,20 @@ The image analysis pipeline is central to Droplet Wall Interaction Tool. It cons
 8. **Vertical Lines:** Detects vertical boundaries for wall contact analysis.
 9. **Calculate Center Points:** Computes droplet center for velocity/tracking.
 10. **Calculate Velocity:** Computes velocity from center point trajectory.
-11. **Save Results & Create Plots:** Saves all results and generates plots/tables.
+11. **Save Results (Excel):** Saves raw results to an Excel file with consistent formatting.
+  - Implementation detail: per-frame overlays are saved under `<trial>/Output/`; the Excel file is written to the parent of `Output` (i.e., directly under `<trial>`) with a sanitized name like `<trial>_results_raw.xlsx`.
 
 ## Usage Example: Batch Analysis
 
-1. Launch the application by running `python dwit.py` from the command line.
-2. Navigate to the **Analysis** tab in the GUI.
+1. Launch the application by running `python dwit.py`.
+2. In the main window, open the **Analysis** tab.
 3. For each experimental trial, ensure the data is organized in a separate folder containing either:
    - A video file (e.g., `trial1.mp4`), or
    - A sequence of images (e.g., `frame_001.jpg`, `frame_002.jpg`, etc.)
 4. Add the trial folders to the analysis queue using the **Add Folder** button.
 5. Adjust analysis parameters (ROI, threshold, baseline) as needed.
 6. Use **Preview** to verify settings or **Full Analysis** to process all queued trials.
-7. Results are automatically saved in structured subfolders within each trial directory.
+7. Per-frame overlays are saved to `<trial>/Output/`. The raw-results Excel is saved to `<trial>/<trial>_results_raw.xlsx`.
 
 # Citations
 

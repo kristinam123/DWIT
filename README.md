@@ -6,7 +6,7 @@
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-EPL%202.0-blue)
 
-> Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for automated droplet experimentation, qualitative image analysis, and experiment planning. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for laboratory automation and data analysis.
+> Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for qualitative image analysis of droplet experiments. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for analysis workflow automation and data analysis.
 
 ---
 
@@ -36,10 +36,12 @@
 - 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement.
 - 🖼️ **Visual ROI & Baseline:** Provides both graphical and numeric interfaces for region selection and baseline adjustment.
 - 🗂️ **Batch Processing:** Supports analysis of multiple datasets with progress visualization.
-- 📈 **Wobble & Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.
+- 📈 **Velocity Analysis:** Tools for droplet dynamics and time-series analysis.
 - 📝 **Log Overlay:** Real-time logging of errors, warnings, and informational messages with status indicators.
 - 🧪 **Manual Testing:** Includes curated test images for rapid validation and reproducibility.
 - ⚡ **Modern UI:** Built with PySide6 (Qt for Python) for cross-platform compatibility and performance.
+ - 🔀 **Modes:** free_sedimentation, contact_angle, channel, structured_packing.
+ - ⚠️ **Channel mode note:** Automatic baseline detection is currently disabled; channel overlays/metrics require externally provided baselines.
 
 ---
 
@@ -50,7 +52,7 @@
 | Directory         | Purpose                                              |
 |-------------------|------------------------------------------------------|
 | `src/helpers/`    | Image processing, analysis, and data saving helpers  |
-| `src/utilities/`  | Utilities for port, ROI management                   |
+| `src/utilities/`  | Utilities: image, logging_manager, overlays, ROI     |
 | `tests/`          | Test images organized by experiment type             |
 
 ---
@@ -96,7 +98,7 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 3. Add or remove folders for batch processing as needed.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
-6. Results (plots, tables) are saved in structured subfolders according to analysis mode.
+6. Outputs: per-frame overlays are saved under `<your_folder>/Output/`; a raw-results Excel file is saved next to that Output folder (i.e., in `<your_folder>`) with a sanitized name like `<your_folder>_results_raw.xlsx`.
 
 ### Logging & Troubleshooting
 
@@ -110,12 +112,12 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 <a name="configuration"></a>
 ## Configuration
 
-| Setting                | How to Change                | Default/Example                |
-|------------------------|------------------------------|-------------------------------|
-| Working Directory      | Set via UI in Controller Tab | (User-selected)                |
-| ROI, Baseline, Params  | Set via UI in Analysis Tab   | (User-selected)                |
-| Dependencies           | `requirements.txt`    | See file                       |
-| Linting/Formatting     | `pyproject.toml`             | Ruff, Black-style, isort rules |
+| Setting                | How to Change                  | Default/Example                |
+|------------------------|--------------------------------|--------------------------------|
+| Input Folders          | Add via UI in Analysis tab     | (User-selected)                |
+| ROI, Baseline, Params  | Set via UI in Analysis tab     | (User-selected)                |
+| Dependencies           | `requirements.txt`             | See file                       |
+| Linting/Formatting     | `pyproject.toml`               | Ruff, Black-style, isort rules |
 
 No environment variables or CLI flags are required.
 
@@ -144,8 +146,11 @@ No environment variables or CLI flags are required.
 - Click the log indicator for details.
 - Most issues are resolved by restarting the application or adjusting parameters.
 
-**Output folder did not update:**
-- Set the working directory in the Controller tab before starting analysis.
+**Output files not where expected:**
+- Overlays are under `<folder>/Output/`; the Excel file is written to the parent of Output (i.e., directly under `<folder>`) with a sanitized name.
+
+**Folder/path encoding issues:**
+- Use ASCII-only folder paths. Non-ASCII characters may cause issues when selecting or processing folders.
 
 ---
 
@@ -174,7 +179,7 @@ We welcome academic and research contributions. To contribute:
    ruff check .
    ruff format .
    ```
-4. Test manually with the application and `test_data/` images.
+4. Test manually with the application and `tests/` images.
 5. Submit a pull/merge request with a clear description of your changes.
 
 **Development notes:**
@@ -188,7 +193,7 @@ We welcome academic and research contributions. To contribute:
 <a name="test-data-and-usage"></a>
 ## Test Data and Usage
 
-The application includes sample test datasets that are loaded by default on first launch. These are located in `tests/` and include various test cases for different analysis modes.
+Sample test datasets are provided under `tests/`. Add them via the Analysis tab when needed.
 
 ### Running an Analysis
 
@@ -202,8 +207,7 @@ The application includes sample test datasets that are loaded by default on firs
    ```sh
    python dwit.py
    ```
-   - The application will start with the Controller tab active
-   - Test datasets will be loaded automatically on first run
+  - The application starts with the Free Sedimentation mode page open.
 
 3. **Run an analysis**:
    - Navigate to the **Analysis** tab
@@ -211,9 +215,9 @@ The application includes sample test datasets that are loaded by default on firs
    - Adjust analysis parameters as needed
    - Click **Preview** to verify settings
    - Click **Full Analysis** to process all queued trials
-   - Results are saved in structured subfolders within each trial directory
-2. For subsequent use, you can add the test folders from `tests/` in the Analysis tab
-3. The test data includes sample images with known expected results for validation
+  - Per-frame overlays are saved to `<trial>/Output/`. The raw-results Excel is saved to `<trial>/<trial>_results_raw.xlsx` (parent of Output).
+2. For subsequent use, add the test folders from `tests/` in the Analysis tab
+3. The test data includes sample images for quick validation
 
 ---
 
@@ -280,8 +284,4 @@ This project makes use of the following open-source libraries:
 
 - **OpenCV-Python**  
   Bradski, G. "The OpenCV Library." Dr. Dobb's Journal of Software Tools (2000).  
-  [License: Apache 2.0 or BSD]
-
-Please refer to the respective project documentation for detailed license information.
-
-A copy of the full LGPL v3 license is provided in this repository as LICENSES/LGPL-3.0.txt. If not present, you may obtain it at: https://www.gnu.org/licenses/lgpl-3.0.html
+  [License: BSD 3-Clause](https://opencv.org/license/)

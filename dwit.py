@@ -484,9 +484,7 @@ class DWIT(QMainWindow):
             self.setWindowTitle("DWIT")
 
         # Set application icon
-        icon_path = os.path.join(
-            os.path.dirname(__file__), "resources", "icons", "avt.ico"
-        )
+        icon_path = os.path.join(os.path.dirname(__file__), "resources", "avt.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:

@@ -611,7 +611,11 @@ class NavigationOverlay(SmoothOverlay):
                 }
             """
             )
-            btn.clicked.connect(lambda i=idx: self._navigate_to_analysis(i))
+            # Ensure we ignore the `checked` bool from clicked(bool)
+            # and capture the correct index
+            btn.clicked.connect(
+                lambda _checked=False, i=idx: self._navigate_to_analysis(i)
+            )
             btn_layout.addWidget(btn, alignment=Qt.AlignHCenter)
 
         # Add stretch above and below to center vertically

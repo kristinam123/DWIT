@@ -7,21 +7,24 @@
 
 - [Getting Started](#getting-started)
 - [Core Concepts & Architecture](#core-concepts--architecture)
-- [Tutorials & Walkthroughs](#tutorials--walkthroughs)
-- [UI Reference](#ui-reference)
-- [API Reference (Internal)](#api-reference-internal)
-- [Configuration & Deployment](#configuration--deployment)
-- [Troubleshooting & FAQs](#troubleshooting--faqs)
-- [Best Practices & Pro Tips](#best-practices--pro-tips)
-- [Development Guide](#development-guide)
-- [Credits & Contact](#credits--contact)
+- [Full Pipeline Flowchart](#full-pipeline-flowchart)
+- [Modes](#modes)
+- [Project Structure](#project-structure)
+- [Summary Table: Step Applicability by Mode](#summary-table-step-applicability-by-mode)
+- [References](#references)
+    - [Core Application (`dwit.py`)](#dwitpy)
+    - [Core Modules (`src/core.py`)](#corepy)
+    - [Helper Modules (`src/helpers/*`)](#helper-modules)
+    - [Threading Modules (`src/threads.py`)](#threading-modules)
+    - [Utilities Modules (`src/utilities/*`)](#utilities-modules)
+    - [Widgets Modules (`src/widgets.py`)](#widgets-modules)
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Python 3.x (Windows/macOS/Linux)
+- Python 3.10+ (Windows/macOS/Linux)
 - [venv](https://docs.python.org/3/library/venv.html) for virtual environments
 
 ### Installation
@@ -55,7 +58,7 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
   Threads/Signals   Data/Params/State   Results/Exports
 ```
 
-## **Full Pipeline Flowchart**
+## Full Pipeline Flowchart
 
 ```mermaid
 %% flowchart TD
@@ -76,7 +79,7 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 %%     I2([Skip: No Contact Angle])
 %%     J([Calculate Center Points])
 %%     K([Calculate Velocity])
-%%     L([Save Results & Create Plots])
+%%     L([Save Results (Excel)])
 %%     Z([End])
 %%
 %%     A --> B --> C --> D
@@ -115,32 +118,62 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 
 ---
 
-## Project Structure
+### Modes
 
-- **UI:** All main UI in `src/widgets.py` (Analysis, etc.)
-- **Core:** Business logic in `src/core.py` (cell, analysis)
-- **Helpers:** Image processing, analysis, and saving in `src/helpers/`
-- **Threads:** Background processing in `src/threads.py` (keeps UI responsive)
-- **Utilities:** Port, ROI, helpers in `src/utilities/`
-- **Test images:** Provided in `tests/` (organized by experiment type)
+- Free sedimentation
+    - No baselines or contact angles. Computes geometry (width/height), center points, and velocity.
+- Contact angle
+    - Detects a single baseline automatically and computes advancing/receding angles, contact line, geometry, and velocity.
+- Channel
+    - Baseline auto-detection is currently disabled. To compute intersections, contact line, and contact angles, provide upper/lower baselines externally. Without baselines, these metrics are skipped and reported as NaN; geometry and velocity still compute.
+- Structured packing
+    - Detects two vertical lines (left/right packing edges). Reports first-contact flags and may compute discontinuous velocity. No contact angles.
+
+Note: Per-frame overlays are saved to <folder>/Output/. The Excel with raw results is saved next to Output (parent folder) as <folder>_results_raw.xlsx with a sanitized name.
 
 ---
 
-### **Summary Table: Step Applicability by Mode**
+## Project Structure
+
+- Application code
+    - UI: `src/widgets.py` (analysis UI and controls)
+    - Core: `src/core.py` (analysis engine)
+    - Helpers: `src/helpers/` (baseline, contour, contact angle, intersections, batch, preview, save, velocity, structured_packing, drawing, initialisation)
+    - Threads: `src/threads.py` (background processing)
+    - Utilities: `src/utilities/` (`image.py`, `logging_manager.py`, `overlays.py`, `roi.py`)
+- Data and assets
+    - Test images: `tests/` (organized by experiment type)
+    - Resources: `resources/` (icons and diagrams like `DWIT.png`, `avt.ico`, `Flowchart_Analysis.png`)
+- Repo & docs
+    - `README.md` (overview and quickstart)
+    - `requirements.txt` (Python dependencies)
+    - `pyproject.toml` (tooling config, e.g., Ruff)
+    - `LICENSE`
+    - `CITATION.cff` (how to cite)
+    - `paper.md`, `paper.bib` (publication materials)
+    - `.pre-commit-config.yaml` (optional dev hooks), `.vscode/` (editor settings)
+
+---
+
+### Summary Table: Step Applicability by Mode
 
 | Step | Free Sedimentation | Contact Angle | Channel | Structured Packing |
 |------|:-----------------:|:-------------:|:-------:|:------------------:|
 | Crop & Rotate Image | ✅ | ✅ | ✅ | ✅ |
 | Remove Background | ✅ | ✅ | ✅ | ✅ |
-| Detect Baselines | 🚫 | ✅ | ✅ | 🚫 |
+| Detect Baselines | 🚫 | ✅ | ⚠️ Manual/External | 🚫 |
 | Contour Measurements | ✅ | ✅ | ✅ | ✅ |
-| Process Intersection Points | 🚫 | ✅ | ✅ | 🚫 |
-| Contact Line Values | 🚫 | ✅ | ✅ | 🚫 |
-| Contact Angle | 🚫 | ✅ | ✅ | 🚫 |
+| Process Intersection Points | 🚫 | ✅ | ⚠️ Requires baselines | 🚫 |
+| Contact Line Values | 🚫 | ✅ | ⚠️ Requires baselines | 🚫 |
+| Contact Angle | 🚫 | ✅ | ⚠️ Requires baselines | 🚫 |
 | Vertical Lines | 🚫 | 🚫 | 🚫 | ✅ |
 | Calculate Center Points | ✅ | ✅ | ✅ | ✅ |
 | Calculate Velocity | ✅ | ✅ | ✅ | ✅ (discrete only) |
-| Save Results & Plots | ✅ | ✅ | ✅ | ✅ |
+| Save Results (Excel) | ✅ | ✅ | ✅ | ✅ |
+
+Notes:
+- Channel mode requires externally provided baselines; otherwise intersection/contact metrics are skipped and stored as NaN.
+- Overlays are saved under <folder>/Output/, while the Excel file is saved to the parent of Output as <folder>_results_raw.xlsx.
 
 ---
 
@@ -206,79 +239,60 @@ if __name__ == "__main__":
 **File Path**: `/src/core.py`
 
 **Purpose**:
-Core module for droplet and experiment analysis in the Droplet Wall Interaction Tool. Provides the main analysis functionality including image processing, contact angle calculation, and data management.
-
-**Key Components**:
+Core analysis engine for DWIT. Orchestrates the pipeline, per-mode behavior, contact metrics, and export.
 
 #### `AnalysisCore` Class
-Main class that handles all analysis operations.
+Drives analysis operations, exposes Qt Properties/Signals, and persists per-mode settings.
 
-**Key Features**:
-- Image processing and analysis pipeline
-- Contact angle calculation with multiple fitting methods
-- Batch processing of image sequences
-- Real-time visualization and data export
-- Persistent settings management
+**Highlights**:
+- Pipeline: rotate + crop → background → threshold/contour → intersections/lines → metrics → save.
+- Modes: `free_sedimentation`, `contact_angle`, `channel`, `structured_packing`.
+- Fitting: Arc (default), Tangent, Polynom, Ellipse.
+ - Saving: Per-frame overlays to `<folder>/Output/`; raw Excel is written to the parent of Output as `<folder>_results_raw.xlsx`.
 
-**Properties**:
-- `folder_path`: Path to the folder containing images/videos to analyze
-- `analysis_mode`: Current analysis mode (e.g., "free_sedimentation", "channel")
-- `baseline`: Baseline angle for analysis
-- `pixel_per_mm`: Pixel-to-millimeter conversion factor
-- `fps`: Frames per second for video analysis
-- `threshold`: Image threshold value for edge detection
-- `fitting_mode`: Method used for contact angle calculation
+**Properties** (subset):
+- Paths: `folder_path`, `folder_paths`, `main_folder_path`.
+- Mode/fit: `analysis_mode`, `fitting_mode`, `polynom`.
+- Calibration: `pixel` (px/mm), `fps`, `threshold`, `rotate_angle`.
+- ROI: `x_img`, `w_img`, `y_img`, `h_img`.
+- Baseline: `baseline_tf`, `manual_baseline`, `baseline`.
 
-**Signals**:
-- `folder_path_changed`: Emitted when the folder path is updated
-- `image_processed`: Emitted after processing each image
-- `error_occurred`: Emitted when an error is encountered
-- `fitting_mode_changed`: Emitted when the fitting mode is changed
+**Signals** (subset):
+- `image_processed(int, dict)`, `error_occurred(str)`, `folder_path_changed(str)`, and per-property change signals.
+- Used with `AnalysisThread.progress_signal(float, list, list, list, dict)` for UI updates.
 
-**Main Methods**:
-- `process_image()`: Process a single image
-- `process_folder()`: Process all images in the current folder
-- `calculate_contact_angles()`: Calculate contact angles using selected method
-- `save_results()`: Save analysis results to file
-- `load_settings()`: Load analysis settings from persistent storage
-- `update_parameters()`: Update multiple analysis parameters at once
+**Primary API**:
+- `process_images(progress_cb, save_files, preview_middle, use_first_as_background)` → `(time, time_int, result_lists)`
+    - Returns time arrays and a dict of lists with one entry per processed frame.
+    - `result_lists` keys include:
+        - `advancing_contact_angles`, `receding_contact_angles`
+        - `rect_width_px`, `rect_height_px`, `rect_width_mm`, `rect_height_mm`
+        - `center_points_px`, `center_points_mm`
+        - `velocity`
+        - `contact_line_px`, `contact_line_mm`
+        - Channel mode adds `upper_*`/`lower_*` contact line values in `result_images` for previews.
+        - Structured packing adds `left/right_contact_detected` (per-frame), `left/right_contact_frame`, `contact_status`, and possibly `discontinuous_velocity_{px_s,mm_s}`.
+
+Mode specifics:
+- `free_sedimentation`: No baselines or contact angles; still computes center, dimensions, velocity.
+- `channel`: Auto-detection of baselines is disabled. If baselines are provided externally, intersections/contact lines/angles are computed; otherwise these metrics are skipped (NaN). Geometry and velocity still compute; previews may include upper/lower overlays when baselines exist.
+- `structured_packing`: Detects two vertical lines; flags first contact frames and computes a discontinuous velocity.
+
+Examples by mode (result_lists keys):
+- Free sedimentation:
+    - rect_width/height_{px,mm}, center_points_{px,mm}, velocity; contact angle arrays are NaN.
+- Contact angle:
+    - advancing_contact_angles, receding_contact_angles, rect_width/height_{px,mm}, center_points_{px,mm}, velocity, contact_line_{px,mm}.
+- Channel:
+    - Same as contact angle when baselines are provided; previews may include upper/lower contact line overlays in result_images.
+- Structured packing:
+    - rect_width/height_{px,mm}, center_points_{px,mm}, discontinuous_velocity_{px_s,mm_s}; flags like left/right_contact_detected (per frame), left/right_contact_frame, contact_status if available.
 
 **Dependencies**:
-- OpenCV (cv2) for image processing
-- NumPy for numerical operations
-- PySide6 for GUI integration
-- Various helper modules from `src/helpers/`
-
-**Usage Example**:
-```python
-# Initialize the analysis core
-analysis = AnalysisCore(folder_path="/path/to/images", 
-                       analysis_mode="free_sedimentation")
-
-# Configure analysis parameters
-analysis.update_parameters(
-    fitting_mode="polynomial",
-    pixel_per_mm=10.0,
-    fps=30,
-    threshold=128
-)
-
-# Process all images in the folder
-analysis.process_folder()
-
-# Get results
-results = analysis.get_results()
-```
+- OpenCV, NumPy, PySide6, helpers in `src/helpers/*`, and utilities in `src/utilities/*`.
 
 **Integration**:
-- Used by the main application's analysis module
-- Interfaces with data visualization components
-- Works with various analysis modes for different experimental setups
-
-**Maintenance Notes**:
-- Keep analysis algorithms updated with latest research
-- Maintain backward compatibility with saved settings
-- Add new analysis modes as needed for different experimental setups
+- Consumed by `AnalysisThread` and UI in `widgets.py`; settings persisted via QSettings.
 
 ---
 
@@ -302,8 +316,7 @@ Detects the baseline where a droplet sits using multiple detection strategies.
 - `manual_offset`: Manual offset value when baseline_tf is True
 
 **Returns**:
-- `y1_left`: Left side Y coordinate of baseline
-- `y1_right`: Right side Y coordinate of baseline
+- `tuple[int|None, int|None]`: `(y1_left, y1_right)` baseline y-coordinates, or `(None, None)` if not found
 
 **Features**:
 - Automatic threshold determination
@@ -331,6 +344,11 @@ y_left, y_right = find_single_baseline(
 height = image.shape[0]
 cv2.line(image, (0, y_left), (image.shape[1], y_right), (0, 255, 0), 2)
 ```
+
+**Notes**:
+- Automatic mode uses Canny + HoughLinesP; favors lower-half, near-horizontal lines; tolerant to slight tilt.
+- Manual mode returns a flat baseline at `img_h - manual_offset`.
+- Baseline may be slightly sloped; downstream uses average y for some steps.
 
 ### `src/helpers/batch.py`
 **File Path**: `/src/helpers/batch.py`
@@ -445,6 +463,7 @@ Calculates contact angles using the arc method.
 **Parameters**:
 - `cols`: Image width
 - `shifted_points`: Contour data points
+- `shifted_x`, `shifted_y`: Contour x/y coordinates (not used by arc method but kept for API parity)
 - `intersection_points`: Detected intersection points with baseline
 - `y1_left`, `y1_right`: Baseline y-coordinates
 - `img`: Processed image
@@ -452,23 +471,33 @@ Calculates contact angles using the arc method.
 - `output_path`: Output directory
 - `advancing_contact_angles`: List to store advancing angles
 - `receding_contact_angles`: List to store receding angles
+- `q`: Current image index (default: 0)
+- `result_images`: Optional dict to store visualization images
+- `save_files`: Whether to save intermediate outputs
+- `contour`: Largest contour (required for arc method)
 
 **Returns**:
-- Updated angle lists and visualization image
+- `tuple`: (advancing_angles, receding_angles, angle_img)
 
 #### `calculate_tangent_contact_angles()`
 Calculates contact angles using the tangent method.
 
 **Parameters**:
+- `cols`: Image width
 - `shifted_points`: List of shifted contour points
+- `shifted_x`, `shifted_y`: X/Y of shifted contour points
 - `intersection_points`: Detected intersection points
 - `y1_left`, `y1_right`: Baseline y-coordinates
 - `img`: Processed image
 - `filename`: Current image filename
 - `output_path`: Output directory
+- `advancing_contact_angles`, `receding_contact_angles`: Optional angle lists
+- `q`: Current image index (default: 0)
+- `result_images`: Optional dict to store visualization images
+- `save_files`: Whether to save intermediate outputs
 
 **Returns**:
-- Updated angle lists and visualization image
+- `tuple`: (advancing_angles, receding_angles, angle_img)
 
 #### `calculate_ellipse_contact_angle()`
 Calculates contact angle using ellipse fitting.
@@ -813,6 +842,16 @@ Draws a line connecting two points on the image.
 - `color`: BGR color tuple (default: green)
 - `thickness`: Line thickness in pixels (default: 2)
 
+#### `draw_rectangle(img, x, y, w, h, color=(0, 0, 255), thickness=2)`
+Draws a rectangle on the image.
+
+**Parameters**:
+- `img`: Target image (numpy array)
+- `x`, `y`: Top-left corner of the rectangle
+- `w`, `h`: Width and height of the rectangle
+- `color`: BGR color tuple (default: red)
+- `thickness`: Border thickness in pixels (default: 2)
+
 #### `draw_center_point(img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickness=2)`
 Draws a center point with crosshairs on the image.
 
@@ -1117,6 +1156,12 @@ for point in shifted_points:
         cv2.circle(vis_img, (int(point[0]), int(point[1])), 3, (255, 0, 0), -1)
 ```
 
+**Details**:
+- Valid contours filtered by width (1–7 mm using `pixel`).
+- Baseline y is average of `y1_left` and `y1_right` and drawn on `vis_img`.
+- If no near-baseline points, falls back to segment-crossing or projection methods.
+- Shifted points are placed above the baseline with adaptive vertical offset; x chosen by nearest contour point or interpolation.
+
 **Maintenance Notes**:
 - Ensure robust handling of various contour shapes and sizes
 - Add validation for input parameters
@@ -1127,8 +1172,8 @@ for point in shifted_points:
 
 ---
 
-### `src/helpers/packing.py`
-**File Path**: `/src/helpers/packing.py`
+### `src/helpers/structured_packing.py`
+**File Path**: `/src/helpers/structured_packing.py`
 
 **Purpose**:
 Helper module for detecting and analyzing structured packing in droplet interaction experiments. Provides functionality to identify vertical boundaries of packing material in images.
@@ -1282,12 +1327,12 @@ show_preview(pixmap, parent_widget)
 **File Path**: `/src/helpers/save_results.py`
 
 **Purpose**:
-Comprehensive module for saving, processing, and visualizing experiment results in the Droplet Wall Interaction Tool. Handles data export to Excel, generates various plots, and performs wobble analysis of droplets.
+Export module for saving raw measurement results to Excel in the Droplet Wall Interaction Tool. Excel is saved to the parent of the Output directory as `<folder>_results_raw.xlsx` (sanitized). Overlays are saved separately under `<folder>/Output/` by the pipeline.
 
 **Key Functions**:
 
 #### `save_results(output_dir, times, result_lists)`
-Main function to save measurement results as plots and Excel files.
+Main function to save measurement results to an Excel file.
 
 **Parameters**:
 - `output_dir`: Directory to save results
@@ -1295,11 +1340,11 @@ Main function to save measurement results as plots and Excel files.
 - `result_lists`: Dictionary containing measurement results
 
 **Features**:
-- Exports raw data to Excel with proper formatting
-- Generates various plots for data visualization
-- Performs wobble analysis on droplet contours
-- Handles different data types and formats
-- Includes error handling and logging
+- Exports raw data to Excel with consistent formatting
+- Handles different data types and shapes (fills missing with NaN)
+- Includes error handling, path sanitization, and alternative filename fallback
+- Exports optional fields when present (e.g., `Discontinuous Velocity [px/s]`, `[mm/s]`)
+ - Writes Excel to the parent folder of `output_dir` (which should be `<folder>/Output/`) using a sanitized `<folder>_results_raw.xlsx` name
 
 #### `_save_dataframe_to_excel(data_dict, output_dir, filename)`
 Saves a data dictionary to Excel with consistent formatting and error handling.
@@ -1310,7 +1355,7 @@ Saves a data dictionary to Excel with consistent formatting and error handling.
 - `filename`: Excel filename
 
 **Internal Helper Functions**:
-- `_extract_data_from_results()`: Processes raw result lists into structured data
+- `_extract_data_from_results()`: Processes raw result lists into structured data, including optional discontinuous velocity keys
 - `_prepare_output_directory()`: Creates output directories
 - `_check_data_availability()`: Validates available data types
 - `_extract_center_coordinates()`: Processes center point data
@@ -1318,8 +1363,7 @@ Saves a data dictionary to Excel with consistent formatting and error handling.
 **Dependencies**:
 - pandas for data manipulation
 - numpy for numerical operations
-- scipy for signal processing and curve fitting
-- Custom logging and conversion utilities
+- Custom logging utilities
 
 **Integration**:
 - Works with the main analysis pipeline
@@ -1328,20 +1372,25 @@ Saves a data dictionary to Excel with consistent formatting and error handling.
 
 **Usage Example**:
 ```python
-# Example usage of save_results
-import numpy as np
-
-# Sample data
-times = np.linspace(0, 10, 100)
+times = [0.0, 0.1, 0.2]
 result_lists = {
-    'centers': [(x, x**2) for x in range(100)],
-    'areas': [x**2 for x in range(100)],
-    'widths': [x for x in range(100)],
-    'heights': [x*2 for x in range(100)]
+    'advancing_contact_angles': [95.2, 94.9, 95.1],
+    'receding_contact_angles': [82.3, 82.1, 82.0],
+    'rect_width_px': [120, 121, 119],
+    'rect_height_px': [80, 81, 80],
+    'rect_width_mm': [1.20, 1.21, 1.19],
+    'rect_height_mm': [0.80, 0.81, 0.80],
+    'center_points_px': [(320, 240)]*3,
+    'center_points_mm': [(3.2, 2.4)]*3,
+    'velocity': [1.1, 1.2, 1.1],
+    'contact_line_px': [210, 211, 209],
+    'contact_line_mm': [2.10, 2.11, 2.09],
+    # Optional keys
+    'discontinuous_velocity_px_s': float('nan'),
+    'discontinuous_velocity_mm_s': float('nan'),
 }
 
-# Save results
-save_results('output_directory', times, result_lists)
+save_results('trial_folder/Output', times, result_lists)  # Excel will be saved to 'trial_folder/<sanitized>_results_raw.xlsx'
 ```
 
 **Maintenance Notes**:
@@ -1461,7 +1510,7 @@ Thread for running automation tasks.
 Thread class for running analysis operations asynchronously.
 
 **Signals**:
-- `progress_signal(progress, advancing_contact_angles, receding_contact_angles, center_points_px, result_images)`: Emitted during analysis to report progress
+- `progress_signal(progress, advancing_contact_angles, receding_contact_angles, center_points_px, result_images)`: Emitted during analysis to report progress (signature: float, list, list, list, dict)
 - `finished_signal(results)`: Emitted when analysis completes successfully
 - `error_signal(error_message)`: Emitted when an error occurs
 
@@ -1487,6 +1536,9 @@ analysis_thread.progress_signal.connect(update_progress_ui)
 analysis_thread.finished_signal.connect(handle_results)
 analysis_thread.error_signal.connect(show_error)
 ```
+Behavior:
+ - Pause: waits between frames until resumed (thread sleeps to reduce CPU).
+ - Stop: requests early termination after current frame; progress callback returns False to abort processing.
 
 ---
 
@@ -1648,11 +1700,7 @@ def handle_roi_selected(self, left, top, right, bottom):
 - Integrates with the main application's GUI components
 - Works with the image processing pipeline for coordinate transformations
 
-**Maintenance Notes**:
-- Ensure proper cleanup of resources in destructor
-- Handle edge cases for image loading and coordinate conversion
-- Maintain aspect ratio during image display
-- Support high-DPI displays
+---
 
 ## Widgets Modules
 
@@ -1687,5 +1735,20 @@ Provides the main analysis interface for processing and visualizing droplet inte
 - Connects to analysis controller for processing
 - Displays results from analysis threads
 - Integrates with the main application window
+
+**Signals**:
+- Subscribes to `controller.image_processed(int, dict)` to update previews.
+- Spawns `AnalysisThread` for preview/full runs and connects:
+    - `progress_signal(float, list, list, list, dict)` → updates stats/preview
+    - `finished_signal(tuple)` → saving and UI reset
+    - `error_signal(str)` → error handling and UI reset
+- `ROISelector` emits `roi_selected(left, top, right, bottom)` → `apply_selected_roi`.
+- `BatchProcessingWorker` (helpers.batch) emits per-folder progress for the list view.
+
+**Batch processing**:
+- Controls: `Add Folders`, `Process All Folders`, `Pause/Resume`, `Stop`.
+- List view with `FolderItemDelegate` renders per-folder progress bars and statuses.
+- Uses a background worker (helpers.batch) to process folders sequentially.
+- Updates `overall_progress` (0–100%) and `folder_counter` (e.g., "2/5 folders").
 
 ---

@@ -21,24 +21,21 @@ def save_results(
     times: list[Union[float, str]],
     result_lists: dict[str, list[Union[float, str]]],
 ) -> None:
-    """Save measurement results as plots and Excel in the specified directory.
+    """Save measurement results to Excel in the specified directory.
 
     Args:
     ----
         output_dir: Directory to save results
-        times: Time values for x-axis
+            (Excel is written to the parent of this Output directory)
+        times: Time values per frame (seconds or index)
         result_lists: Dictionary containing measurement results
+            (see documentation for expected keys)
 
     """
     logger.debug(
         f"save_results called with times: {len(times)}, "
         f"result_lists keys: {list(result_lists.keys())}"
     )
-
-    # Prepare output directory
-    if not _prepare_output_directory(output_dir):
-        logger.error(f"Failed to create or access output directory: {output_dir}")
-        return
 
     # Extract and process data from result_lists
     extracted_data = _extract_data_from_results(result_lists, len(times))
@@ -128,26 +125,6 @@ def _extract_data_from_results(result_lists, num_times):
         data["discontinuous_velocity_mm_s"] = [float("nan")] * num_times
 
     return data
-
-
-def _prepare_output_directory(output_dir):
-    """Create output directory if it doesn't exist.
-
-    Args:
-    ----
-        output_dir: Directory to create
-
-    Returns:
-    -------
-        Boolean indicating if directory was created successfully
-
-    """
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-        return True
-    except (PermissionError, OSError) as e:
-        logger.error(f"Failed to create output directory {output_dir}: {e}")
-        return False
 
 
 def _check_data_availability(data):

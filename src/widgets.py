@@ -2065,7 +2065,6 @@ class AnalysisGUI(QWidget):
             # If we have a folder path, save the results
             if self.controller.folder_path:
                 output_dir = os.path.join(self.controller.folder_path, "Output")
-                os.makedirs(output_dir, exist_ok=True)
                 logger.info(f"Saving results to: {output_dir}")
                 save_results(output_dir, time, result_lists)
             else:

@@ -17,6 +17,8 @@ tests/structured_packing (BuAc_d_large)/structured_packing (BuAc_d_large)_result
 
 # IDE specific files
 .vscode/
+.github/
+copilot-instructions.md
 
 # Ignore all .pyc files
 *.pyc
