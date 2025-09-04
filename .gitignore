@@ -3,11 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Ignore generated output from test data
-tests/free_sedimentation (BuAc_d_large)/free_sedimentation (BuAc_d_large)_results_raw.xlsx
-tests/channel (BuAc_d_large)/channel (BuAc_d_large)_results_raw.xlsx
-tests/contact_wall (BuAc_d_large)/contact_wall (BuAc_d_large)_results_raw.xlsx
-tests/structured_packing (BuAc_d_large)/structured_packing (BuAc_d_large)_results_raw.xlsx
+# Ignore generated result files from test data (new naming: results_raw.xlsx)
+tests/free_sedimentation (BuAc_d_large)/results_raw.xlsx
+tests/channel (BuAc_d_large)/results_raw.xlsx
+tests/contact_wall (BuAc_d_large)/results_raw.xlsx
+tests/structured_packing (BuAc_d_large)/results_raw.xlsx
 
 # Development
 .ruff_cache/

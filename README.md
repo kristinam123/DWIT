@@ -98,7 +98,7 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 3. Add or remove folders for batch processing as needed.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
-6. Outputs: per-frame overlays are saved under `<your_folder>/Output/`; a raw-results Excel file is saved next to that Output folder (i.e., in `<your_folder>`) with a sanitized name like `<your_folder>_results_raw.xlsx`.
+6. Outputs: per-frame overlays are saved under `<your_folder>/` (no `Output` subfolder is created by default); a raw-results Excel file is saved in the same folder with the fixed name `results_raw.xlsx`.
 
 ### Logging & Troubleshooting
 
@@ -147,7 +147,7 @@ No environment variables or CLI flags are required.
 - Most issues are resolved by restarting the application or adjusting parameters.
 
 **Output files not where expected:**
-- Overlays are under `<folder>/Output/`; the Excel file is written to the parent of Output (i.e., directly under `<folder>`) with a sanitized name.
+- Per-frame overlays are saved under the selected folder (no `Output` subfolder); the Excel file is written to the same folder as `results_raw.xlsx`.
 
 **Folder/path encoding issues:**
 - Use ASCII-only folder paths. Non-ASCII characters may cause issues when selecting or processing folders.
@@ -215,7 +215,7 @@ Sample test datasets are provided under `tests/`. Add them via the Analysis tab 
    - Adjust analysis parameters as needed
    - Click **Preview** to verify settings
    - Click **Full Analysis** to process all queued trials
-  - Per-frame overlays are saved to `<trial>/Output/`. The raw-results Excel is saved to `<trial>/<trial>_results_raw.xlsx` (parent of Output).
+  - Per-frame overlays are saved to the selected folder. The raw-results Excel is saved as `<trial>/results_raw.xlsx`.
 2. For subsequent use, add the test folders from `tests/` in the Analysis tab
 3. The test data includes sample images for quick validation
 

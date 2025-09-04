@@ -165,7 +165,6 @@ def draw_contact_indicators(
     right_contact: bool,
     left_contact_frame: Optional[int] = None,
     right_contact_frame: Optional[int] = None,
-    current_frame: int = 0,
 ):
     """Draw visual indicators for contact detection on the image.
 
@@ -178,7 +177,6 @@ def draw_contact_indicators(
         right_contact: Whether right contact is currently detected
         left_contact_frame: Frame number of first left contact (None if not yet)
         right_contact_frame: Frame number of first right contact (None if not yet)
-        current_frame: Current frame number
 
     """
     if image is None:

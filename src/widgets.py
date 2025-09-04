@@ -5,16 +5,36 @@ Part of Droplet Wall Interaction Tool (DWIT).
 
 import glob
 import os
+import sys
 from typing import Any, Optional
 
 import cv2
 import numpy as np
-from PySide6.QtCore import QCoreApplication, Qt, QThread, QTimer
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtCore import (
+    QCoreApplication,
+    QPoint,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    QUrl,
+    Signal,
+)
+from PySide6.QtGui import (
+    QColor,
+    QDragEnterEvent,
+    QDropEvent,
+    QIcon,
+    QImage,
+    QPainter,
+    QPixmap,
+    QPolygon,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -25,11 +45,12 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QSizePolicy,
-    QSlider,
     QSpinBox,
+    QTextEdit,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -49,6 +70,345 @@ from src.utilities.roi import ROISelector
 logger = get_logger(__name__)
 
 
+def normalize_path_for_ascii(path: str) -> str:
+    """Convert a path with special characters to ASCII-compatible version.
+
+    Args:
+    ----
+        path: Original path that may contain special characters
+
+    Returns:
+    -------
+        str: ASCII-compatible version of the path
+
+    """
+    import unicodedata
+
+    # Normalize unicode characters to their ASCII equivalents where possible
+    normalized = unicodedata.normalize("NFKD", path)
+    # Remove accents and diacritics
+    ascii_path = "".join(c for c in normalized if ord(c) < 128)
+
+    # Handle Windows drive letters specially (preserve C:, D:, etc.)
+    drive_letter = ""
+    remaining_path = ascii_path
+    if len(ascii_path) >= 2 and ascii_path[1] == ":":
+        drive_letter = ascii_path[:2]  # Keep "C:", "D:", etc.
+        remaining_path = ascii_path[2:]  # Process the rest
+
+    # Replace any remaining problematic characters with underscores
+    # Keep valid path characters: letters, numbers, and common path symbols
+    valid_chars = set(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\\/_-. ()"
+    )
+    cleaned_remaining = "".join(c if c in valid_chars else "_" for c in remaining_path)
+
+    # Combine drive letter with cleaned path
+    ascii_path = drive_letter + cleaned_remaining
+
+    # Clean up multiple consecutive underscores
+    while "__" in ascii_path:
+        ascii_path = ascii_path.replace("__", "_")
+    # Remove leading/trailing underscores from each path component
+    path_parts = ascii_path.split("\\")
+    cleaned_parts = []
+    for i, part in enumerate(path_parts):
+        if i == 0 and ":" in part:
+            # Keep drive letter as-is
+            cleaned_parts.append(part)
+        elif part.strip("_"):
+            cleaned_parts.append(part.strip("_"))
+    return "\\".join(cleaned_parts)
+
+
+class PathValidationDialog(QDialog):
+    """Dialog for validating and converting folder paths with special characters."""
+
+    def __init__(self, parent=None):
+        """Initialize the path validation dialog."""
+        super().__init__(parent)
+        self.setWindowTitle("Folder Path Validation")
+        self.setModal(True)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
+
+        # Results storage
+        self.user_choice = None  # 'yes', 'no', or None
+        self.path_mappings = {}  # {original_path: converted_path}
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Set up the dialog UI."""
+        layout = QVBoxLayout(self)
+
+        # Title and description
+        title_label = QLabel("Folder Path Contains Special Characters")
+        title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(title_label)
+
+        description = QLabel(
+            "The selected folder path(s) contain special characters (e.g., ü, ä, ö, ß) "
+            "that may cause issues with the analysis. The application can "
+            "automatically rename these folders and files to ASCII-compatible versions."
+        )
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
+        # Warning label
+        warning_label = QLabel(
+            "⚠️ Warning: This will permanently rename the folders and files. "
+            "Make sure you have backups if needed."
+        )
+        warning_label.setStyleSheet("color: #FF6B00; font-weight: bold;")
+        warning_label.setWordWrap(True)
+        layout.addWidget(warning_label)
+
+        # Path conversion display - two column layout
+        display_layout = QHBoxLayout()
+
+        # Left column: paths with highlighted problematic characters
+        left_layout = QVBoxLayout()
+        path_label = QLabel("Paths with problematic characters:")
+        path_label.setStyleSheet("font-weight: bold;")
+        left_layout.addWidget(path_label)
+
+        self.path_display = QTextEdit()
+        self.path_display.setReadOnly(True)
+        self.path_display.setMaximumHeight(200)
+        left_layout.addWidget(self.path_display)
+
+        # Right column: character replacement mappings
+        right_layout = QVBoxLayout()
+        mapping_label = QLabel("Character replacements:")
+        mapping_label.setStyleSheet("font-weight: bold;")
+        right_layout.addWidget(mapping_label)
+
+        self.mapping_display = QTextEdit()
+        self.mapping_display.setReadOnly(True)
+        self.mapping_display.setMaximumHeight(200)
+        self.mapping_display.setMaximumWidth(200)
+        right_layout.addWidget(self.mapping_display)
+
+        display_layout.addLayout(left_layout)
+        display_layout.addLayout(right_layout)
+        layout.addLayout(display_layout)
+
+        # Checkbox removed as all paths are renamed anyway
+
+        # Buttons
+        button_layout = QHBoxLayout()
+
+        self.yes_button = QPushButton("Yes - Rename Folder(s)")
+        self.yes_button.clicked.connect(self._on_yes_clicked)
+        button_layout.addWidget(self.yes_button)
+
+        self.no_button = QPushButton("No - Cancel")
+        self.no_button.clicked.connect(self._on_no_clicked)
+        button_layout.addWidget(self.no_button)
+
+        layout.addLayout(button_layout)
+
+    def set_paths(self, paths: list[str]):
+        """Set the paths to be validated and show before/after conversion.
+
+        Args:
+        ----
+            paths: List of folder paths to validate
+
+        """
+        self.path_mappings = {}
+        display_html = ""
+        char_mappings = set()  # Track unique character replacements
+
+        for path in paths:
+            try:
+                path.encode("ascii")
+                continue
+            except UnicodeEncodeError:
+                converted_path = normalize_path_for_ascii(path)
+                self.path_mappings[path] = converted_path
+
+                # Create highlighted version with only problematic chars marked
+                highlighted_path = self._highlight_problematic_chars(
+                    path, char_mappings
+                )
+                display_html += f"{highlighted_path}<br>"
+
+        if display_html:
+            self.path_display.setHtml(display_html)
+            # Show character mappings
+            mapping_text = "\n".join(sorted(char_mappings))
+            self.mapping_display.setPlainText(mapping_text)
+        else:
+            self.path_display.setPlainText("No paths require conversion.")
+            self.mapping_display.setPlainText("No character replacements needed.")
+
+    def _on_yes_clicked(self):
+        """Handle Yes button click."""
+        self.user_choice = "yes"
+        self.accept()
+
+    def _highlight_problematic_chars(self, path: str, char_mappings: set) -> str:
+        """Highlight problematic characters in the path and track replacements.
+
+        Args:
+        ----
+            path: The original path
+            char_mappings: Set to collect character replacement mappings
+
+        Returns:
+        -------
+            str: HTML string with problematic characters highlighted
+
+        """
+        import unicodedata
+
+        result = ""
+
+        for char in path:
+            try:
+                char.encode("ascii")
+                # Character is ASCII-compatible
+                result += char
+            except UnicodeEncodeError:
+                # Character needs replacement
+                normalized = unicodedata.normalize("NFKD", char)
+                ascii_char = "".join(c for c in normalized if ord(c) < 128)
+                if not ascii_char:
+                    ascii_char = "_"
+
+                # Add to mappings (avoid duplicates)
+                char_mappings.add(f"{char} → {ascii_char}")
+
+                # Highlight the problematic character
+                highlighted = (
+                    '<span style="color: red; font-weight: bold; '
+                    'text-decoration: underline;">'
+                    f"{char}"
+                    "</span>"
+                )
+                result += highlighted
+
+        return result
+
+    def _on_no_clicked(self):
+        """Handle No button click."""
+        self.user_choice = "no"
+        self.reject()
+
+
+class FolderDropZone(QFrame):
+    """A drag-and-drop zone widget that mimics the appearance of a folder item."""
+
+    # Signal emitted when folders are dropped
+    folders_dropped = Signal(list)
+
+    # Class-level attribute to make static analyzers (vulture) recognise
+    # that instances will have this attribute (it's manipulated by Qt
+    # event handlers). Having it at class level avoids false positives
+    # about an "unused attribute" while not changing runtime behaviour.
+    _drag_active = False
+
+    def __init__(self, parent=None):
+        """Initialize the drop zone widget."""
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setMinimumHeight(32)  # Same height as folder items
+        self.setMaximumHeight(32)
+
+        # Use QFrame styling to match the overall GUI
+        self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
+        self.setLineWidth(1)
+        self.setMidLineWidth(0)
+
+        # Create a label for the text
+        self.label = QLabel(
+            "Drag and drop folders <b><u>here</u></b> - "
+            "intelligent folder search included"
+        )
+        self.label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Create layout for the frame
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.addWidget(self.label)
+
+        self.setToolTip(
+            "Drag and drop one or more folders here. The application will "
+            "automatically find subfolders containing data (images or videos)."
+        )
+
+        # Track drag state for visual feedback
+        self._drag_active = False  # ignore PyTypeChecker
+
+    def dragEnterEvent(self, event: QDragEnterEvent):  # noqa: N802
+        """Handle drag enter events."""
+        # Read _drag_active to make static analysers aware this attribute
+        # is intentionally used (Qt calls these handlers implicitly).
+        _ = getattr(self, "_drag_active", False)
+        if event.mimeData().hasUrls():
+            # Check if any of the URLs are directories
+            urls = event.mimeData().urls()
+            has_folders = any(
+                QUrl(url).toLocalFile()
+                for url in urls
+                if os.path.isdir(QUrl(url).toLocalFile())
+            )
+
+            if has_folders:
+                event.acceptProposedAction()
+                self._drag_active = True
+                # Use raised frame to indicate active drop zone
+                self.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):  # noqa: N802
+        """Handle drag leave events."""
+        # Read and then write to _drag_active so static analysers detect use.
+        _ = getattr(self, "_drag_active", False)
+        self._drag_active = False
+        # Restore sunken frame style
+        self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event: QDropEvent):  # noqa: N802
+        """Handle drop events."""
+        # Read _drag_active to make static analysers aware this attribute
+        # is intentionally used by the Qt event handlers.
+        _ = getattr(self, "_drag_active", False)
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            folder_paths = []
+
+            for url in urls:
+                local_path = QUrl(url).toLocalFile()
+                if local_path and os.path.isdir(local_path):
+                    folder_paths.append(local_path)
+
+            if folder_paths:
+                event.acceptProposedAction()
+                self.folders_dropped.emit(folder_paths)
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+        # Reset visual state
+        self._drag_active = False
+        # Restore sunken frame style
+        self.setFrameStyle(QFrame.StyledPanel | QFrame.Sunken)
+
+    # Reference event handler methods so static analysers like vulture
+    # detect they are intentionally defined for use by the Qt event
+    # system (these are not directly referenced in Python code).
+    # This tuple is evaluated at import time and does not change runtime
+    # behaviour; it only provides an explicit reference.
+    _vulture_references = (dragEnterEvent, dragLeaveEvent, dropEvent)
+
+
 class AnalysisGUI(QWidget):
     """Modern GUI for analysis."""
 
@@ -60,6 +420,10 @@ class AnalysisGUI(QWidget):
             super().__init__(parent)
             self.controller = controller
             self.main_thread = None
+
+            # Path validation preferences
+            self._path_validation_choice = None  # 'yes', 'no', or None
+            self._apply_to_all_paths = False
             self.preview_thread = None
 
             # Add a processing state flag to track when analysis is running
@@ -70,7 +434,6 @@ class AnalysisGUI(QWidget):
 
             # Initialize image storage
             self.preview_images = {"original": [], "contour": [], "result": []}
-            self.current_frame = 0
             self.total_frames = 0
 
             # Create debounce timer for parameter changes
@@ -88,6 +451,12 @@ class AnalysisGUI(QWidget):
             # non-contextual operations
             self.should_show_context_preview = False
 
+            # Add flag to track when we're in preview mode (no progress updates)
+            self.is_in_preview_mode = False
+
+            # Add flag to track when we're in preview mode (no progress updates)
+            self.is_in_preview_mode = False
+
             if hasattr(self.controller, "image_processed"):
                 self.controller.image_processed.connect(self._update_preview_image)
 
@@ -103,6 +472,11 @@ class AnalysisGUI(QWidget):
             # Load the folder list from controller after UI creation
             if hasattr(self.controller, "folder_paths"):
                 self._update_folder_list(self.controller.folder_paths)
+                # Start background scanner for results files
+                try:
+                    self._start_results_scanner()
+                except Exception:
+                    logger.exception("Failed to start results scanner")
 
             else:
                 logger.warning("Controller does not have folder_paths attribute")
@@ -110,8 +484,26 @@ class AnalysisGUI(QWidget):
             # Make sure main folder highlighting is applied
             self._update_main_folder_highlight()
 
+            # Flag used to indicate the user requested a hard stop/skip
+            # which should prevent any final saving of `results_raw.xlsx`.
+            self._user_requested_stop_no_save = False
+
+            # Initialize index mapping for batch processing
+            self.processing_to_ui_index_map = {}
+
+            # Initialize processing mode
+            self.processing_mode = "undone"
+
             # Auto-trigger preview only if this widget is visible after initialization
-            QTimer.singleShot(100, self._conditional_auto_preview)
+            # Ensure we're in the main thread before starting timer
+            try:
+                from PySide6.QtCore import QCoreApplication
+
+                QCoreApplication.processEvents()
+                QTimer.singleShot(100, self._conditional_auto_preview)
+            except Exception:
+                # If timer fails, just skip auto-preview
+                logger.debug("Could not start auto-preview timer, skipping")
 
             logger.info("AnalysisGUI initialization completed successfully")
 
@@ -121,7 +513,15 @@ class AnalysisGUI(QWidget):
             logger.error(f"Controller: {controller}")
             raise
 
-        QTimer.singleShot(500, lambda: setattr(self, "is_initializing", False))
+        # Set initialization flag with defensive timer
+        try:
+            from PySide6.QtCore import QCoreApplication
+
+            QCoreApplication.processEvents()
+            QTimer.singleShot(500, lambda: setattr(self, "is_initializing", False))
+        except Exception:
+            # If timer fails, set flag directly
+            self.is_initializing = False
         logger.info("AnalysisGUI initialization completed")
 
     def _conditional_auto_preview(self):
@@ -324,8 +724,8 @@ class AnalysisGUI(QWidget):
         preview_container.setMinimumWidth(400)
         main_content_layout.addWidget(preview_container, 1)
 
-        # Add to main layout
-        self.main_layout.addWidget(main_content, 1)
+        # Add main content (preview/canvas area) with higher stretch (2)
+        self.main_layout.addWidget(main_content, 2)
 
     def _setup_parent_layout(self) -> None:
         """Set up the parent layout configuration."""
@@ -343,16 +743,13 @@ class AnalysisGUI(QWidget):
 
     def _setup_action_control_tooltips(self) -> None:
         """Set up tooltips for action control widgets."""
-        self.add_folders_btn.setToolTip(
-            "Add one or more folders to the batch processing queue."
-        )
-        self.process_batch_btn.setToolTip(
-            "Start processing all folders in the batch queue."
-        )
+        # The tooltip for process_batch_btn is set dynamically in _set_process_mode
+        # based on the current processing mode
         self.pause_resume_btn.setToolTip("Pause or resume the current processing.")
         self.stop_btn.setToolTip("Stop the current processing.")
         self.folder_list.setToolTip(
-            "List of folders to process. Right-click for more options."
+            "List of folders to process. Right-click for more options. "
+            "Green circles indicate completed folders with results."
         )
         self.overall_progress.setToolTip(
             "Shows the overall progress of the current operation."
@@ -416,10 +813,6 @@ class AnalysisGUI(QWidget):
             self.canvas_result.setToolTip(
                 "Displays the result of the analysis or processing."
             )
-        if hasattr(self, "frame_slider"):
-            self.frame_slider.setToolTip(
-                "Scroll through frames in the current preview or analysis."
-            )
 
     def _setup_stats_section_tooltips(self) -> None:
         """Set up tooltips for statistics section widgets."""
@@ -445,6 +838,9 @@ class AnalysisGUI(QWidget):
         if self.is_processing:
             logger.warning("Analysis already in progress, ignoring request")
             return
+
+        # Clear preview mode flag for main analysis
+        self.is_in_preview_mode = False
 
         # Set processing flag
         self.is_processing = True
@@ -481,10 +877,7 @@ class AnalysisGUI(QWidget):
 
         # Clear previous preview images when starting a new run
         self.preview_images = {"original": [], "contour": [], "result": []}
-        self.current_frame = 0
         self.total_frames = 0
-        self.frame_slider.setMaximum(0)
-        #         self.frame_slider.setEnabled(False)
 
         # Use the main folder for analysis if available,
         # otherwise use the current folder path
@@ -582,13 +975,67 @@ class AnalysisGUI(QWidget):
         batch_layout = QVBoxLayout(batch_widget)
         batch_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Create drag-and-drop zone and buttons in horizontal layout
+        top_controls_layout = QHBoxLayout()
+
+        # Create Add Folders button (leftmost) - same height as drop zone, wider
+        self.add_folders_btn = QPushButton("Add Folders")
+        self.add_folders_btn.clicked.connect(self.add_folders_to_batch)
+        self.add_folders_btn.setFixedHeight(32)  # Same as drop zone
+        self.add_folders_btn.setMinimumWidth(120)  # Wider than default
+        self.add_folders_btn.setToolTip(
+            "Add one or more folders to the batch processing queue. "
+            "The application will automatically find subfolders containing data."
+        )
+        top_controls_layout.addWidget(self.add_folders_btn)
+
+        # Create drag-and-drop zone (middle, takes most space)
+        self.drop_zone = FolderDropZone()
+        self.drop_zone.folders_dropped.connect(self._handle_dropped_folders)
+        top_controls_layout.addWidget(self.drop_zone, 1)  # Takes most space
+
+        # Create help button with question mark icon (rightmost)
+        self.help_btn = QPushButton()
+        self.help_btn.setText("?")
+        self.help_btn.setFixedSize(32, 32)
+        self.help_btn.setToolTip("Click to learn about intelligent folder detection")
+        self.help_btn.clicked.connect(self._show_folder_detection_help)
+        # Style the help button as a gray circle with white question mark
+        self.help_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #808080;
+                color: white;
+                border-radius: 16px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #606060;
+            }
+            QPushButton:pressed {
+                background-color: #404040;
+            }
+        """
+        )
+        top_controls_layout.addWidget(self.help_btn)
+
+        # Add the top controls to batch layout
+        batch_layout.addLayout(top_controls_layout)
+
         # Create folder list widget with custom delegate for progress bars
         self.folder_list = QListWidget()
         self.folder_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.folder_list.setMinimumHeight(120)  # Increased from 80 to 120
-        self.folder_list.setMaximumHeight(180)  # Increased from 120 to 180
+        # Allow the folder list area to expand (no fixed max height)
+        self.folder_list.setMinimumHeight(100)
+        # Remove maximum height constraint to let layout stretching work
+        # self.folder_list.setMaximumHeight(180)
+        self.folder_list.setUniformItemSizes(False)  # Allow non-uniform sizes
         self.folder_delegate = FolderItemDelegate()
         self.folder_list.setItemDelegate(self.folder_delegate)
+        # Prepare results scanner thread and worker attributes (started later)
+        self._results_scanner_thread = None
+        self._results_scanner_worker = None
         self.folder_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.folder_list.customContextMenuRequested.connect(
             self._show_folder_context_menu
@@ -598,14 +1045,55 @@ class AnalysisGUI(QWidget):
         # Create buttons for batch processing in a single horizontal layout
         batch_buttons_layout = QHBoxLayout()
 
-        self.add_folders_btn = QPushButton("Add Folders")
-        self.add_folders_btn.clicked.connect(self.add_folders_to_batch)
-        batch_buttons_layout.addWidget(self.add_folders_btn)
+        # Create split button for processing options (main button + dropdown)
+        split_button_widget = QWidget()
+        split_button_layout = QHBoxLayout(split_button_widget)
+        split_button_layout.setContentsMargins(0, 0, 0, 0)
+        split_button_layout.setSpacing(0)
 
-        # Add a single "Process All Folders" button
-        self.process_batch_btn = QPushButton("Process All Folders")
-        self.process_batch_btn.clicked.connect(self.process_all_folders)
-        batch_buttons_layout.addWidget(self.process_batch_btn)
+        # Main button (larger area) - executes the current mode
+        self.process_batch_btn = QPushButton("Process Undone")
+        self.process_batch_btn.clicked.connect(self.process_selected_folders)
+        self.process_batch_btn.setMinimumWidth(120)
+
+        # Dropdown button (smaller area) - opens mode selection
+        self.mode_dropdown_btn = QPushButton("▼")
+        self.mode_dropdown_btn.setMaximumWidth(20)
+        self.mode_dropdown_btn.setMinimumWidth(20)
+
+        # Create dropdown menu for processing options
+        process_menu = QMenu(self)
+
+        # Process Undone action (default)
+        process_undone_action = process_menu.addAction("Process Undone")
+        process_undone_action.setToolTip(
+            "Process only folders that don't have results_raw.xlsx file (default)"
+        )
+        process_undone_action.triggered.connect(
+            lambda: self._set_process_mode("undone")
+        )
+
+        # Process All action
+        process_all_action = process_menu.addAction("Process All")
+        process_all_action.setToolTip(
+            "Process all folders independent from done-status"
+        )
+        process_all_action.triggered.connect(lambda: self._set_process_mode("all"))
+
+        # Set up the dropdown menu only on the dropdown button
+        self.mode_dropdown_btn.setMenu(process_menu)
+
+        # Add both buttons to the split button layout
+        split_button_layout.addWidget(self.process_batch_btn)
+        split_button_layout.addWidget(self.mode_dropdown_btn)
+
+        # Store the processing mode (default is "undone")
+        self.processing_mode = "undone"
+
+        batch_buttons_layout.addWidget(split_button_widget)
+
+        # Set initial processing mode
+        self._set_process_mode("undone")
 
         # Create pause/resume button with icon
         self.pause_resume_btn = QPushButton()
@@ -627,6 +1115,35 @@ class AnalysisGUI(QWidget):
         self.stop_btn.clicked.connect(self._stop_processing)
         batch_buttons_layout.addWidget(self.stop_btn)
 
+        # Create skip button positioned to the right of the stop (square) button
+        self.skip_btn = QPushButton()
+
+        # Try to get a system/theme skip icon first
+        skip_icon = QIcon.fromTheme("media-skip-forward")
+
+        if skip_icon.isNull():
+            # Fallback: build a simple double-triangle (>>)
+            size = 24
+            pixmap = QPixmap(size, size)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QColor(60, 60, 60))
+            painter.setPen(Qt.NoPen)
+            tri1 = QPolygon([QPoint(4, 4), QPoint(12, 12), QPoint(4, 20)])
+            tri2 = QPolygon([QPoint(12, 4), QPoint(20, 12), QPoint(12, 20)])
+            painter.drawPolygon(tri1)
+            painter.drawPolygon(tri2)
+            painter.end()
+            skip_icon = QIcon(pixmap)
+
+        self.skip_btn.setIcon(skip_icon)
+        self.skip_btn.setToolTip(
+            "Skip current folder and continue with the next (batch processing only)."
+        )
+        self.skip_btn.clicked.connect(self._skip_current_folder)
+        batch_buttons_layout.addWidget(self.skip_btn)
+
         batch_layout.addLayout(batch_buttons_layout)
 
         overall_progress_layout = QHBoxLayout()
@@ -645,10 +1162,11 @@ class AnalysisGUI(QWidget):
 
         batch_layout.addLayout(overall_progress_layout)
 
-        self.main_layout.addWidget(batch_widget)
+        # Add batch (folder list) widget with stretch factor 1
+        # (main content added with stretch 2 for 1:2 ratio)
+        self.main_layout.addWidget(batch_widget, 1)
 
-        # Create attributes for buttons that were removed
-        # so other code can reference them
+        # Create attributes for removed legacy buttons (placeholders)
         self.preview_button = QPushButton()
         self.analyze_button = QPushButton()
 
@@ -698,6 +1216,8 @@ class AnalysisGUI(QWidget):
     def _stop_processing(self):
         """Stop the current processing."""
         # Check which thread is running and stop it
+        # Record that the user requested a stop that should prevent saving
+        self._user_requested_stop_no_save = True
         if self.main_thread and self.main_thread.isRunning():
             self.main_thread.stop()
         elif (
@@ -706,6 +1226,26 @@ class AnalysisGUI(QWidget):
             and self.batch_thread.isRunning()
         ):
             self.batch_worker.stop()
+
+    def _skip_current_folder(self):
+        """Skip current folder in batch processing.
+
+        Has no effect during single-folder analysis.
+        """
+        if (
+            hasattr(self, "batch_thread")
+            and self.batch_thread
+            and self.batch_thread.isRunning()
+            and hasattr(self, "batch_worker")
+        ):
+            # When skipping a folder via the UI, ensure the worker does not
+            # write out a `results_raw.xlsx` for the skipped folder.
+            # We set the same flag used for stop to avoid a final save.
+            self._user_requested_stop_no_save = True
+            self.batch_worker.skip_current_folder()
+        else:
+            # No-op if not in batch mode; could later disable button based on state
+            logger.info("Skip requested but no batch processing active")
 
     def _create_parameter_section(self, parent_widget=None) -> None:
         """Create parameter configuration area with vertical layout."""
@@ -1026,6 +1566,9 @@ class AnalysisGUI(QWidget):
             logger.warning("Processing already in progress, ignoring preview request")
             return
 
+        # Set preview mode flag to prevent progress bar updates
+        self.is_in_preview_mode = True
+
         # Set processing flag
         self.is_processing = True
 
@@ -1175,6 +1718,20 @@ class AnalysisGUI(QWidget):
         orig_img = cv2.imread(middle_image)
 
         temp_roi_image = rotate_image(orig_img, rotation_angle)
+        if temp_roi_image is None:
+            logger.error(f"Failed to load/rotate image for ROI ranges: {middle_image}")
+            self._set_default_roi_ranges()
+            return
+
+        if temp_roi_image is None:
+            logger.error(f"Failed to load/rotate image for ROI ranges: {middle_image}")
+            self._set_default_roi_ranges()
+            return
+        if temp_roi_image is None:
+            logger.error(
+                f"Failed to load/rotate image for ROI selector: {middle_image}"
+            )
+            return
 
         # Limit spinboxes to rotated image size
         self.left_roi_spinbox.setRange(0, temp_roi_image.shape[1] - 1)
@@ -1278,6 +1835,9 @@ class AnalysisGUI(QWidget):
             # Apply rotation if specified in controller
             rotation_angle = getattr(self.controller, "rotate_angle", 0.0)
             image = rotate_image(image, rotation_angle)
+            if image is None:
+                logger.error(f"Failed to rotate image for ROI preview: {middle_image}")
+                return
 
             # Draw ROI rectangle on the rotated image
             roi_left = self.controller.x_img
@@ -1489,8 +2049,7 @@ class AnalysisGUI(QWidget):
 
             # Apply rotation
             rotation_angle = getattr(self.controller, "rotate_angle", 0.0)
-            if rotation_angle != 0.0:
-                image = rotate_image(image, rotation_angle)
+            image = rotate_image(image, rotation_angle)
 
             # Apply cropping
             crop_params = (
@@ -1568,25 +2127,6 @@ class AnalysisGUI(QWidget):
         # Add canvases to layout with equal stretch factors
         preview_layout.addWidget(self.canvas_result)
 
-        # Create frame slider container
-        slider_container = QWidget()
-        slider_layout = QHBoxLayout(slider_container)
-        slider_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create frame slider with reversed direction
-        self.frame_slider = QSlider(Qt.Horizontal)
-        self.frame_slider.setMinimum(0)
-        self.frame_slider.setMaximum(0)  # Will be updated when images are loaded
-        #         self.frame_slider.setEnabled(False)  # Disabled by default
-        self.frame_slider.valueChanged.connect(self._on_frame_changed)
-        self.frame_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        # Add slider and counter to container
-        slider_layout.addWidget(self.frame_slider)
-
-        # Add slider container to preview layout
-        preview_layout.addWidget(slider_container)
-
         # Add statistics section directly underneath the preview images
         stats_frame = self._create_stats_section()
         preview_layout.addWidget(stats_frame)
@@ -1594,19 +2134,6 @@ class AnalysisGUI(QWidget):
         # If parent_widget was not provided, add to main layout
         if not parent_widget:
             self.main_layout.addWidget(preview_widget, 1)
-
-    def _on_frame_changed(self, value: int) -> None:
-        """Handle frame slider value change."""
-        if 0 <= value < len(self.preview_images["original"]):
-            self.current_frame = value
-            self._update_frame_display()
-
-    def _update_frame_display(self) -> None:
-        """Update all preview canvases with current frame."""
-        if self.current_frame < len(self.preview_images["original"]):
-            self.display_image_in_canvas(
-                self.preview_images["result"][self.current_frame], self.canvas_result
-            )
 
     def _create_stats_section(self) -> QFrame:
         """Create statistics display area and return the frame."""
@@ -1935,6 +2462,9 @@ class AnalysisGUI(QWidget):
         # Reset processing flag
         self.is_processing = False
 
+        # Clear preview mode flag
+        self.is_in_preview_mode = False
+
         #         self.analyze_button.setEnabled(True)
         #         self.preview_button.setEnabled(True)
 
@@ -1973,6 +2503,60 @@ class AnalysisGUI(QWidget):
             QIcon.fromTheme("media-playback-pause", QIcon(":/icons/pause.png"))
         )
         self.pause_resume_btn.setToolTip("Pause processing")
+
+    def _ensure_velocity(self, result_lists: dict, time, time_int) -> None:
+        """Calculate velocities if missing or all NaN in the provided results.
+
+        Updates `result_lists` in-place.
+        """
+        vel = result_lists.get("velocity")
+        if not vel or all(np.isnan(v) for v in vel):
+            try:
+                fps_val = getattr(self.controller, "_fps", None)
+                if fps_val is None:
+                    fps_val = getattr(self.controller, "fps", None)
+
+                result_lists["velocity"] = calculate_velocities(
+                    result_lists.get("center_points_px", []),
+                    getattr(self.controller, "pixel", None),
+                    fps_val,
+                    time_int,
+                )
+            except Exception as e:
+                logger.error(f"Failed to calculate velocity: {e}")
+                # Leave velocity as-is (likely NaNs)
+
+    def _build_save_parameters(self) -> dict:
+        """Build parameters dict for saving results from controller attributes."""
+        return {
+            "pixel": getattr(self.controller, "pixel", None),
+            "fps": getattr(self.controller, "fps", None),
+            "threshold": getattr(self.controller, "threshold", None),
+            "rotate_angle": getattr(self.controller, "rotate_angle", None),
+            "baseline": getattr(self.controller, "baseline", None),
+            "fitting_mode": getattr(self.controller, "fitting_mode", None),
+            "polynom": getattr(self.controller, "polynom", None),
+            "baseline_tf": getattr(self.controller, "baseline_tf", None),
+            "manual_baseline": getattr(self.controller, "manual_baseline", None),
+            "x_img": getattr(self.controller, "x_img", None),
+            "y_img": getattr(self.controller, "y_img", None),
+            "w_img": getattr(self.controller, "w_img", None),
+            "h_img": getattr(self.controller, "h_img", None),
+        }
+
+    def _find_representative_file_names(self, output_dir: str):
+        """Find representative image files in `output_dir`. Returns list or None."""
+        try:
+            exts = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff"]
+            file_names = []
+            for e in exts:
+                file_names.extend(glob.glob(os.path.join(output_dir, e)))
+            if file_names:
+                file_names.sort()
+                return file_names
+        except Exception:
+            pass
+        return None
 
     def _process_results(self, results: tuple) -> None:
         """Process and save the results from analysis."""
@@ -2047,26 +2631,37 @@ class AnalysisGUI(QWidget):
                     * len(time),  # Initialize if not available
                 }
 
-            # Calculate velocity if it's missing
-            if not result_lists["velocity"] or all(
-                np.isnan(v) for v in result_lists["velocity"]
-            ):
-                try:
-                    result_lists["velocity"] = calculate_velocities(
-                        center_points_px,
-                        self.controller.pixel,
-                        self.controller._fps,
-                        time_int,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to calculate velocity: {e}")
-                    pass
+            # Ensure velocity exists (calculate if missing)
+            self._ensure_velocity(result_lists, time, time_int)
 
-            # If we have a folder path, save the results
+            # If we have a folder path, save the results directly into it
             if self.controller.folder_path:
-                output_dir = os.path.join(self.controller.folder_path, "Output")
-                logger.info(f"Saving results to: {output_dir}")
-                save_results(output_dir, time, result_lists)
+                output_dir = self.controller.folder_path
+                logger.info(f"Saving results into folder: {output_dir}")
+
+                # Build parameters dict and folder/file info
+                parameters = self._build_save_parameters()
+                folder_name = os.path.basename(output_dir or "")
+                file_names = self._find_representative_file_names(output_dir)
+
+                # If the user explicitly requested a stop/skip that should
+                # prevent saving (set by _stop_processing or _skip_current_folder),
+                # do not save results for this run. Reset the flag after honoring it.
+                if getattr(self, "_user_requested_stop_no_save", False):
+                    logger.info(
+                        "User requested stop/skip — skipping saving results_raw.xlsx"
+                    )
+                    # Reset the flag so subsequent runs can save normally
+                    self._user_requested_stop_no_save = False
+                else:
+                    save_results(
+                        output_dir,
+                        time,
+                        result_lists,
+                        parameters=parameters,
+                        folder_name=folder_name,
+                        file_names=file_names,
+                    )
             else:
                 logger.warning("No folder path available, results not saved")
 
@@ -2094,8 +2689,13 @@ class AnalysisGUI(QWidget):
         result_lists: Optional[dict[str, Any]] = None,
     ) -> None:
         """Update UI with current processing results."""
-        # Update progress bar
-        self.overall_progress.setValue(int(q * 100))
+        # Only update progress bars when NOT in preview mode
+        if not self.is_in_preview_mode:
+            # Update progress bar
+            self.overall_progress.setValue(int(q * 100))
+
+            # Update folder progress if we're analyzing a main folder
+            self._update_folder_progress(q)
 
         # Update images and UI elements
         self._update_result_images(result_images)
@@ -2110,7 +2710,7 @@ class AnalysisGUI(QWidget):
         )
 
     def _update_result_images(self, result_images: dict[str, Any]) -> None:
-        """Update result images and frame slider."""
+        """Update result images and internal preview image storage."""
         try:
             # Only store images if this is from the main analysis (not preview)
             is_main_analysis = (
@@ -2127,11 +2727,9 @@ class AnalysisGUI(QWidget):
                 if is_main_analysis:
                     self.preview_images["result"].append(result_images["result"])
 
-            # Update frame slider only for main analysis
+            # Update internal frame count only for main analysis
             if is_main_analysis:
                 self.total_frames = len(self.preview_images["original"])
-                if self.total_frames > 0:
-                    self.frame_slider.setMaximum(self.total_frames - 1)
 
             # Force UI update
             QCoreApplication.processEvents()
@@ -2272,6 +2870,24 @@ class AnalysisGUI(QWidget):
                 else "<b>Velocity:</b> -- mm/s"
             )
 
+    def _update_folder_progress(self, progress: float) -> None:
+        """Update progress for the currently analyzing folder."""
+        # Find the main folder in the folder list and update its progress
+        main_folder_path = self.controller.main_folder_path
+        if not main_folder_path:
+            return
+
+        # Find the folder in the list
+        for i in range(self.folder_list.count()):
+            item = self.folder_list.item(i)
+            if item and item.data(Qt.UserRole) == main_folder_path:
+                # Update progress for this folder (0-100)
+                progress_percent = int(progress * 100)
+                self.folder_delegate.set_progress(i, progress_percent)
+                # Update the specific item
+                self.folder_list.update(self.folder_list.model().index(i, 0))
+                break
+
     def add_folders_to_batch(self) -> None:
         """Add multiple folders to the batch processing queue."""
         logger.info("Opening folder selection dialog for batch processing")
@@ -2291,15 +2907,356 @@ class AnalysisGUI(QWidget):
         if folder_dialog.exec():
             folders = folder_dialog.selectedFiles()
             logger.info(f"User selected {len(folders)} folders for batch processing")
-            for folder in folders:
-                if folder and folder not in self.controller.folder_paths:
-                    self.controller.add_folder_path(folder)
-                    # Display the full path for consistency
-                    item = QListWidgetItem(folder)
-                    item.setData(Qt.UserRole, folder)
-                    self.folder_list.addItem(item)
+            self._process_selected_folders(folders)
         else:
             pass
+
+    def _show_folder_detection_help(self):
+        """Show help dialog explaining the intelligent folder detection."""
+        from PySide6.QtWidgets import QMessageBox
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Intelligent Folder Detection")
+        msg.setIcon(QMessageBox.Information)
+
+        help_text = (
+            "<b>How Intelligent Folder Detection Works:</b><br><br>"
+            "When you add a folder (via drag-and-drop or 'Add Folders' button), "
+            "the application automatically:<br><br>"
+            "• <b>Scans</b> the folder and all its subfolders<br>"
+            "• <b>Finds</b> folders containing sufficient data:<br>"
+            "&nbsp;&nbsp;- At least 3 image files (.jpg, .png, .bmp, etc.) OR<br>"
+            "&nbsp;&nbsp;- At least 1 video file (.mp4, .avi, .mov, etc.)<br>"
+            "• <b>Adds</b> only the data-containing folders to the processing "
+            "queue<br><br>"
+            "<b>Example:</b><br>"
+            "If you add a parent folder containing 10 subfolders, but only 4 contain "
+            "enough images/videos, only those 4 folders will be added to the queue."
+        )
+
+        msg.setText(help_text)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
+
+    def _handle_dropped_folders(self, folder_paths: list[str]) -> None:
+        """Handle folders dropped onto the drop zone."""
+        logger.info(f"User dropped {len(folder_paths)} folders")
+        self._process_selected_folders(folder_paths)
+
+    def _validate_and_convert_paths(self, folders: list[str]) -> list[str]:
+        """Validate folder paths and convert special characters if approved by user.
+
+        Args:
+        ----
+            folders: List of folder paths to validate
+
+        Returns:
+        -------
+            list[str]: List of validated/converted folder paths, or empty if cancelled
+
+        """
+        # Check which folders have special characters
+        problematic_folders, valid_folders = self._categorize_folders(folders)
+
+        # If no problematic folders, return all as-is
+        if not problematic_folders:
+            return folders
+
+        # Check if user has already made a choice for "Apply to All"
+        if self._apply_to_all_paths and self._path_validation_choice is not None:
+            if self._path_validation_choice == "yes":
+                # Create simple mappings and convert
+                path_mappings = {
+                    folder: normalize_path_for_ascii(folder)
+                    for folder in problematic_folders
+                }
+                return self._convert_folder_paths(folders, path_mappings)
+            else:
+                # User previously chose "No" for all - skip these folders
+                return []
+
+        # Show validation dialog and get user choice
+        dialog = PathValidationDialog(self)
+        dialog.set_paths(problematic_folders)
+
+        if dialog.exec() == QDialog.Accepted and dialog.user_choice == "yes":
+            # Store user choice for future use (if/when an "apply to all"
+            # option is added to the dialog). For now, only honor 'yes'.
+            self._path_validation_choice = "yes"
+            self._apply_to_all_paths = True
+
+            return self._convert_folder_paths(folders, dialog.path_mappings)
+
+        # User cancelled or declined conversion. Do NOT set
+        # `_apply_to_all_paths` here so the dialog can reappear for future
+        # folder selections. Return empty to indicate no converted paths.
+        return []
+
+    def _categorize_folders(self, folders: list[str]) -> tuple[list[str], list[str]]:
+        """Categorize folders into problematic and valid ones."""
+        problematic_folders = []
+        valid_folders = []
+
+        for folder in folders:
+            try:
+                folder.encode("ascii")
+                valid_folders.append(folder)
+            except UnicodeEncodeError:
+                problematic_folders.append(folder)
+
+        return problematic_folders, valid_folders
+
+    def _convert_folder_paths(
+        self, folders: list[str], path_mappings: dict
+    ) -> list[str]:
+        """Convert folder paths using the provided mappings."""
+        converted_folders = []
+
+        for folder in folders:
+            if folder in path_mappings:
+                converted_path = self._create_converted_directory(
+                    folder, path_mappings[folder]
+                )
+                converted_folders.append(converted_path)
+            else:
+                converted_folders.append(folder)
+
+        return converted_folders
+
+    def _create_converted_directory(
+        self, original_path: str, converted_path: str
+    ) -> str:
+        """Rename the directory and its contents to remove special characters."""
+        try:
+            # If paths are the same, no conversion needed
+            if original_path == converted_path:
+                return original_path
+
+            # Check if converted path already exists
+            if os.path.exists(converted_path):
+                logger.warning(f"Converted path already exists: {converted_path}")
+                return converted_path
+
+            # First, rename all files and subdirectories within the folder
+            self._rename_folder_contents(original_path)
+
+            # Then rename the main folder
+            os.rename(original_path, converted_path)
+            logger.info(f"Renamed folder: {original_path} -> {converted_path}")
+            return converted_path
+
+        except Exception as e:
+            logger.error(f"Failed to rename folder {original_path}: {e}")
+            # Return original path if rename fails
+            QMessageBox.warning(
+                self,
+                "Folder Rename Failed",
+                f"Failed to rename folder:\n{original_path}\n\n"
+                f"Using original path instead. Error: {e}",
+            )
+            return original_path
+
+    def _rename_folder_contents(self, folder_path: str):
+        """Recursively rename all files and subdirectories to remove special chars."""
+        try:
+            # Get all items in the folder
+            items = os.listdir(folder_path)
+
+            # Process files and subdirectories
+            for item in items:
+                original_item_path = os.path.join(folder_path, item)
+                normalized_name = normalize_path_for_ascii(item)
+                new_item_path = os.path.join(folder_path, normalized_name)
+
+                # Only rename if the name actually changed
+                if item != normalized_name and not os.path.exists(new_item_path):
+                    try:
+                        # If it's a directory, recursively rename its contents first
+                        if os.path.isdir(original_item_path):
+                            self._rename_folder_contents(original_item_path)
+
+                        # Rename the item
+                        os.rename(original_item_path, new_item_path)
+                        logger.debug(f"Renamed: {item} -> {normalized_name}")
+
+                    except Exception as e:
+                        logger.warning(f"Failed to rename {original_item_path}: {e}")
+
+                # If it's a subdirectory (whether renamed or not), process its contents
+                current_path = (
+                    new_item_path
+                    if os.path.exists(new_item_path)
+                    else original_item_path
+                )
+                if os.path.isdir(current_path):
+                    self._rename_folder_contents(current_path)
+
+        except Exception as e:
+            logger.error(f"Failed to process folder contents in {folder_path}: {e}")
+
+    def _find_data_folders(self, parent_folder: str) -> list[str]:
+        """Find all subfolders containing data (images or videos).
+
+        Criteria:
+        - At least 3 image files (jpg, jpeg, png, bmp, tiff) OR
+        - At least 1 video file (mp4, avi, mov, mkv, wmv)
+
+        Args:
+        ----
+            parent_folder: Path to the parent folder to search
+
+        Returns:
+        -------
+            list[str]: List of folder paths containing data
+
+        """
+        data_folders = []
+
+        # Image extensions
+        image_extensions = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
+        # Video extensions
+        video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".m4v", ".flv"}
+
+        try:
+            # Check if the parent folder itself contains data
+            if self._folder_contains_data(
+                parent_folder, image_extensions, video_extensions
+            ):
+                data_folders.append(parent_folder)
+
+            # Walk through all subdirectories
+            for root, _, _ in os.walk(parent_folder):
+                # Skip the parent folder itself (already checked above)
+                if root == parent_folder:
+                    continue
+
+                if self._folder_contains_data(root, image_extensions, video_extensions):
+                    data_folders.append(root)
+
+        except Exception as e:
+            logger.error(f"Error scanning folder {parent_folder}: {e}")
+            # If scanning fails, return the parent folder as fallback
+            return [parent_folder]
+
+        # If no subfolders with data found, return the parent folder
+        if not data_folders:
+            logger.info(
+                f"No data folders found in {parent_folder}, using parent folder"
+            )
+            return [parent_folder]
+
+        logger.info(f"Found {len(data_folders)} data folders in {parent_folder}")
+        return data_folders
+
+    def _folder_contains_data(
+        self, folder_path: str, image_exts: set, video_exts: set
+    ) -> bool:
+        """Check if a folder contains sufficient data files.
+
+        Args:
+        ----
+            folder_path: Path to check
+            image_exts: Set of image file extensions
+            video_exts: Set of video file extensions
+
+        Returns:
+        -------
+            bool: True if folder contains at least 3 images or 1 video
+
+        """
+        try:
+            files = os.listdir(folder_path)
+            image_count = 0
+            video_count = 0
+
+            for file in files:
+                file_lower = file.lower()
+                file_ext = os.path.splitext(file_lower)[1]
+
+                if file_ext in image_exts:
+                    image_count += 1
+                elif file_ext in video_exts:
+                    video_count += 1
+
+                # Early exit if criteria met
+                if image_count >= 3 or video_count >= 1:
+                    return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking folder contents {folder_path}: {e}")
+            return False
+
+    def _process_selected_folders(self, folders: list[str]):
+        """Process selected folders, validating paths and adding to the list.
+
+        Args:
+        ----
+            folders: List of folder paths selected by user
+
+        """
+        # Validate and convert initial paths
+        validated_folders = self._validate_and_convert_paths(folders)
+        if not validated_folders:
+            return
+
+        # Expand to data-containing subfolders (deduplicated)
+        unique_data_folders = self._expand_to_data_folders(validated_folders)
+        logger.info(f"Found {len(unique_data_folders)} unique data folders")
+
+        # Validate the detected subfolders for special characters
+        validated_data_folders = self._validate_and_convert_paths(unique_data_folders)
+        if not validated_data_folders:
+            return
+
+        # Add validated data folders to the UI and controller
+        self._add_folders_to_list(validated_data_folders)
+
+    def _expand_to_data_folders(self, folders: list[str]) -> list[str]:
+        """Return deduplicated list of data-containing folders from given roots."""
+        all_data_folders = []
+        for folder in folders:
+            if os.path.isdir(folder):
+                data_folders = self._find_data_folders(folder)
+                all_data_folders.extend(data_folders)
+            else:
+                logger.warning(f"Skipping invalid folder: {folder}")
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique = []
+        for f in all_data_folders:
+            if f not in seen:
+                seen.add(f)
+                unique.append(f)
+        return unique
+
+    def _add_folders_to_list(self, folders: list[str]) -> None:
+        """Add folders to controller and folder_list widget, updating scanner."""
+        for folder in folders:
+            if not folder or folder in self.controller.folder_paths:
+                continue
+            self.controller.add_folder_path(folder)
+            item = QListWidgetItem(folder)
+            item.setData(Qt.UserRole, folder)
+            item.setSizeHint(QSize(300, 32))
+            self.folder_list.addItem(item)
+
+            # Immediately check this folder for results (fast feedback)
+            try:
+                idx = self.folder_list.count() - 1
+                has = os.path.exists(os.path.join(folder, "results_raw.xlsx"))
+                self.folder_delegate.set_results_presence(idx, has)
+                self.folder_list.update(self.folder_list.model().index(idx, 0))
+                if self._results_scanner_worker is not None:
+                    paths = [
+                        self.folder_list.item(i).data(Qt.UserRole)
+                        for i in range(self.folder_list.count())
+                    ]
+                    self._results_scanner_worker.set_folder_paths(paths)
+            except Exception:
+                pass
 
     def remove_selected_folders(self) -> None:
         """Remove selected folders from the batch list."""
@@ -2322,6 +3279,94 @@ class AnalysisGUI(QWidget):
         self.controller.clear_folder_paths()
         self.folder_list.clear()
         self.folder_list.clear()
+        # Clear stored presence info
+        try:
+            self.folder_delegate.clear_results_presence()
+            if self._results_scanner_worker is not None:
+                self._results_scanner_worker.set_folder_paths([])
+        except Exception:
+            pass
+        # Also clear any main/current folder references so the UI does not
+        # continue to show a 'last preview' folder when the list is empty.
+        try:
+            # Clear main folder and current folder path in controller
+            if hasattr(self.controller, "set_main_folder_path"):
+                self.controller.set_main_folder_path("")
+            if hasattr(self.controller, "set_folder_path"):
+                self.controller.set_folder_path("")
+        except Exception:
+            pass
+        # Reset folder counter and preview images to reflect empty state
+        try:
+            self.folder_counter.setText("0/0 folders")
+            self.preview_images = {"original": [], "contour": [], "result": []}
+            self.total_frames = 0
+            # Ensure main folder highlight is updated
+            self._update_main_folder_highlight()
+        except Exception:
+            pass
+
+    def _set_process_mode(self, mode: str) -> None:
+        """Set the processing mode and update button text."""
+        self.processing_mode = mode
+        if mode == "undone":
+            self.process_batch_btn.setText("Process Undone")
+            self.process_batch_btn.setToolTip(
+                "Process only folders that don't have results_raw.xlsx file"
+            )
+        else:  # mode == "all"
+            self.process_batch_btn.setText("Process All")
+            self.process_batch_btn.setToolTip(
+                "Process all folders independent from done-status"
+            )
+
+        # Update dropdown button tooltip to show current mode
+        self.mode_dropdown_btn.setToolTip(
+            f"Current mode: {mode}. Click to change processing mode."
+        )
+
+        logger.info(f"Processing mode set to: {mode}")
+
+    def process_selected_folders(self) -> None:
+        """Process folders based on the selected mode (all or undone only)."""
+        if self.processing_mode == "undone":
+            self._process_undone_folders()
+        else:  # mode == "all"
+            self.process_all_folders()
+
+    def _process_undone_folders(self) -> None:
+        """Process only folders that don't have results_raw.xlsx file."""
+        logger.info("Starting batch processing of undone folders only")
+        # Check if already processing
+        if self.is_processing:
+            logger.warning("Processing already in progress, ignoring batch request")
+            return
+
+        # Get list of folders that don't have results_raw.xlsx
+        undone_folders = []
+        undone_indices = []
+
+        for i in range(self.folder_list.count()):
+            item = self.folder_list.item(i)
+            folder_path = item.data(Qt.UserRole)
+
+            # Check if results file exists
+            results_file = os.path.join(folder_path, "results_raw.xlsx")
+            if not os.path.exists(results_file):
+                undone_folders.append(folder_path)
+                undone_indices.append(i)
+
+        if not undone_folders:
+            logger.info("No undone folders found to process")
+            return
+
+        logger.info(
+            f"Starting batch processing of {len(undone_folders)} undone folders "
+            f"(out of {self.folder_list.count()} total folders)"
+        )
+
+        # Start processing with filtered folder list
+        self._start_batch_processing(undone_folders, undone_indices)
 
     def process_all_folders(self) -> None:
         """Process all folders in the batch list sequentially."""
@@ -2336,19 +3381,35 @@ class AnalysisGUI(QWidget):
             logger.warning("No folders in batch queue to process")
             return
 
-        logger.info(f"Starting batch processing of {folder_count} folders")
+        # Get all folder paths and indices
+        all_folders = []
+        all_indices = []
+
+        for i in range(folder_count):
+            item = self.folder_list.item(i)
+            folder_path = item.data(Qt.UserRole)
+            all_folders.append(folder_path)
+            all_indices.append(i)
+
+        logger.info(f"Starting batch processing of {len(all_folders)} folders")
+
+        # Start processing with all folders
+        self._start_batch_processing(all_folders, all_indices)
+
+    def _start_batch_processing(self, folder_paths: list, folder_indices: list) -> None:
+        """Start batch processing with the given folders and indices."""
         # Set processing flag
         self.is_processing = True
 
-        # Reset progress for all folders
-        for i in range(folder_count):
+        # Reset progress for all folders in the list (not just the ones being processed)
+        for i in range(self.folder_list.count()):
             self.folder_delegate.set_progress(i, 0)
             # Update each item individually instead of the whole list
             self.folder_list.update(self.folder_list.model().index(i, 0))
 
         # Reset overall progress
         self.overall_progress.setValue(0)
-        self.folder_counter.setText("0/" + str(folder_count) + " folders")
+        self.folder_counter.setText(f"0/{len(folder_paths)} folders")
 
         # Disable UI buttons during processing
         #         self.process_batch_btn.setEnabled(False)
@@ -2365,18 +3426,22 @@ class AnalysisGUI(QWidget):
 
         # Clear previous preview images
         self.preview_images = {"original": [], "contour": [], "result": []}
-        self.current_frame = 0
         self.total_frames = 0
-        self.frame_slider.setMaximum(0)
-        #         self.frame_slider.setEnabled(False)
 
-        # Create and start the batch processing thread
+        # Create and start the batch processing thread with filtered folders
         self.batch_thread = QThread()
         self.batch_worker = BatchProcessingWorker(
             self.controller,
-            self.controller.folder_paths,
+            folder_paths,  # Use filtered folder list
             self._update_batch_progress,
         )
+
+        # Store the mapping of processing indices to UI indices for progress updates
+        self.processing_to_ui_index_map = {
+            processing_idx: ui_idx
+            for processing_idx, ui_idx in enumerate(folder_indices)
+        }
+
         self.batch_worker.moveToThread(self.batch_thread)
         self.batch_thread.started.connect(self.batch_worker.process_folders)
         self.batch_worker.progress_updated.connect(self._update_batch_progress)
@@ -2394,24 +3459,30 @@ class AnalysisGUI(QWidget):
 
     def _update_batch_progress(self, folder_index, folder_path, progress_percent):
         """Update UI with batch processing progress."""
+        # Map processing index to UI index
+        ui_index = self.processing_to_ui_index_map.get(folder_index, folder_index)
+
         # Update progress bar for this folder
-        self.folder_delegate.set_progress(folder_index, progress_percent)
+        self.folder_delegate.set_progress(ui_index, progress_percent)
         # Update the specific item rather than the whole list
-        self.folder_list.update(self.folder_list.model().index(folder_index, 0))
+        self.folder_list.update(self.folder_list.model().index(ui_index, 0))
 
     def _on_folder_completed(self, folder_index, folder_path, success):
         """Handle completion of a single folder in the batch."""
+        # Map processing index to UI index
+        ui_index = self.processing_to_ui_index_map.get(folder_index, folder_index)
+
         if success:
             # Set progress to 100% for success
-            self.folder_delegate.set_progress(folder_index, 100)
+            self.folder_delegate.set_progress(ui_index, 100)
         else:
             # For failure, set a specific value that can be styled differently
             self.folder_delegate.set_progress(
-                folder_index, -1
+                ui_index, -1
             )  # Using -1 to indicate error
 
         # Update the specific item
-        self.folder_list.update(self.folder_list.model().index(folder_index, 0))
+        self.folder_list.update(self.folder_list.model().index(ui_index, 0))
 
     def _on_batch_completed(self):
         """Handle completion of the entire batch process."""
@@ -2460,10 +3531,19 @@ class AnalysisGUI(QWidget):
             item = QListWidgetItem(path)
             # Store the full path as data
             item.setData(Qt.UserRole, path)
+            # Set size hint for proper display of progress bars
+            item.setSizeHint(QSize(300, 32))  # Fixed size for progress bars
             self.folder_list.addItem(item)
 
         # Reset progress data when updating the list
         self.folder_delegate.progress_data = {}
+
+        # Reset results presence and perform an immediate scan
+        try:
+            self.folder_delegate.clear_results_presence()
+            self._immediate_scan_folder_results()
+        except Exception:
+            logger.exception("Error scanning folder results during update")
 
         # Ensure main folder is highlighted
         self._update_main_folder_highlight()
@@ -2474,12 +3554,31 @@ class AnalysisGUI(QWidget):
             self._update_main_folder_highlight()
 
         # Delay setting the horizontal scrollbar value to the right side
-        QTimer.singleShot(
-            0,
-            lambda: self.folder_list.horizontalScrollBar().setValue(
-                self.folder_list.horizontalScrollBar().maximum()
-            ),
-        )
+        # Use QCoreApplication.processEvents() to ensure we're in the main thread
+        try:
+            from PySide6.QtCore import QCoreApplication
+
+            QCoreApplication.processEvents()
+            if hasattr(self, "folder_list") and self.folder_list:
+                QTimer.singleShot(
+                    0,
+                    lambda: (
+                        self.folder_list.horizontalScrollBar().setValue(
+                            self.folder_list.horizontalScrollBar().maximum()
+                        )
+                        if hasattr(self, "folder_list") and self.folder_list
+                        else None
+                    ),
+                )
+        except Exception:
+            # If timer fails, set scroll position directly
+            try:
+                if hasattr(self, "folder_list") and self.folder_list:
+                    self.folder_list.horizontalScrollBar().setValue(
+                        self.folder_list.horizontalScrollBar().maximum()
+                    )
+            except Exception:
+                pass
 
     def _update_stats_with_param(
         self,
@@ -2548,6 +3647,13 @@ class AnalysisGUI(QWidget):
 
             menu.addSeparator()
 
+            # Add 'Open in Explorer' action for convenience
+            open_action = menu.addAction("Open in Explorer")
+            open_action.setToolTip(full_path)
+            open_action.triggered.connect(
+                lambda: self.open_folder_in_explorer(full_path)
+            )
+
         menu.addAction("Remove Selected", self.remove_selected_folders)
         menu.addAction("Clear All", self.clear_folder_list)
 
@@ -2570,12 +3676,31 @@ class AnalysisGUI(QWidget):
     def show_event(self, event):
         """Handle show event."""
         super().show_event(event)
-        QTimer.singleShot(
-            50,
-            lambda: self.folder_list.horizontalScrollBar().setValue(
-                self.folder_list.horizontalScrollBar().maximum()
-            ),
-        )
+        # Set horizontal scrollbar to maximum safely
+        try:
+            from PySide6.QtCore import QCoreApplication
+
+            QCoreApplication.processEvents()
+            if hasattr(self, "folder_list") and self.folder_list:
+                QTimer.singleShot(
+                    50,
+                    lambda: (
+                        self.folder_list.horizontalScrollBar().setValue(
+                            self.folder_list.horizontalScrollBar().maximum()
+                        )
+                        if hasattr(self, "folder_list") and self.folder_list
+                        else None
+                    ),
+                )
+        except Exception:
+            # If timer fails, set scroll position directly
+            try:
+                if hasattr(self, "folder_list") and self.folder_list:
+                    self.folder_list.horizontalScrollBar().setValue(
+                        self.folder_list.horizontalScrollBar().maximum()
+                    )
+            except Exception:
+                pass
 
     def preview_selected_folder(self, folder_path: str) -> None:
         """Run preview on a specific folder and set it as the main folder."""
@@ -2611,6 +3736,35 @@ class AnalysisGUI(QWidget):
 
         # Run analysis
         self.main()
+
+    def open_folder_in_explorer(self, folder_path: str) -> None:
+        """Open the given folder in the system file explorer."""
+        try:
+            if not folder_path or not os.path.isdir(folder_path):
+                logger.error(
+                    "Cannot open folder in explorer, invalid path: %s", folder_path
+                )
+                return
+
+            # Windows
+            if os.name == "nt":
+                os.startfile(folder_path)
+                return
+
+            # macOS
+            if sys.platform == "darwin":
+                import subprocess
+
+                subprocess.run(["open", folder_path])
+                return
+
+            # Linux and others
+            import subprocess
+
+            subprocess.run(["xdg-open", folder_path])
+
+        except Exception as e:
+            logger.error(f"Failed to open folder in explorer: {e}")
 
     def _update_roi_ranges_from_image(self):
         """Update ROI spinbox ranges based on the rotated image dimensions."""
@@ -2648,9 +3802,14 @@ class AnalysisGUI(QWidget):
         )
 
         # Load and rotate the image to get its size
+        # Load image and attempt rotation; handle failures gracefully
         orig_img = cv2.imread(middle_image)
-
         temp_roi_image = rotate_image(orig_img, rotation_angle)
+        if temp_roi_image is None:
+            logger.error(f"Failed to load/rotate image for ROI ranges: {middle_image}")
+            # Use default ranges instead of crashing
+            self._set_default_roi_ranges()
+            return
 
         # Block signals to prevent triggering valueChanged when range changes
         self.left_roi_spinbox.blockSignals(True)
@@ -2694,6 +3853,148 @@ class AnalysisGUI(QWidget):
         self.right_roi_spinbox.blockSignals(False)
         self.top_roi_spinbox.blockSignals(False)
         self.bottom_roi_spinbox.blockSignals(False)
+
+    def _update_existing_scanner(self):
+        """Update the existing scanner with current folder paths."""
+        try:
+            paths = [
+                self.folder_list.item(i).data(Qt.UserRole)
+                for i in range(self.folder_list.count())
+            ]
+            self._results_scanner_worker.set_folder_paths(paths)
+        except Exception:
+            pass
+
+    def _get_folder_paths_for_scanner(self):
+        """Get folder paths for scanner initialization."""
+        try:
+            return [
+                self.folder_list.item(i).data(Qt.UserRole)
+                for i in range(self.folder_list.count())
+            ]
+        except Exception:
+            return []
+
+    def _immediate_scan_folder_results(self):
+        """Immediately scan all folders for results files (synchronous)."""
+        try:
+            for i in range(self.folder_list.count()):
+                item = self.folder_list.item(i)
+                if item:
+                    folder_path = item.data(Qt.UserRole)
+                    if folder_path and isinstance(folder_path, str):
+                        try:
+                            results_file = os.path.join(folder_path, "results_raw.xlsx")
+                            has_results = (
+                                os.path.exists(folder_path)
+                                and os.path.isdir(folder_path)
+                                and os.path.exists(results_file)
+                            )
+                            self.folder_delegate.set_results_presence(i, has_results)
+                            # Update each item individually
+                            if hasattr(self, "folder_list") and self.folder_list:
+                                self.folder_list.update(
+                                    self.folder_list.model().index(i, 0)
+                                )
+                        except (OSError, PermissionError, FileNotFoundError):
+                            self.folder_delegate.set_results_presence(i, False)
+                        except Exception:
+                            self.folder_delegate.set_results_presence(i, False)
+
+        except Exception as e:
+            logger.error(f"Failed to scan folder results immediately: {e}")
+
+    def _create_scan_result_callback(self):
+        """Create callback function for scan results."""
+
+        def _on_scan_result(idx, folder_path, has):
+            try:
+                if hasattr(self, "folder_delegate") and self.folder_delegate:
+                    self.folder_delegate.set_results_presence(idx, has)
+                if hasattr(self, "folder_list") and self.folder_list:
+                    self.folder_list.update(self.folder_list.model().index(idx, 0))
+            except (AttributeError, RuntimeError):
+                # Widget may have been destroyed
+                pass
+            except Exception:
+                pass
+
+        return _on_scan_result
+
+    def _start_results_scanner(self):
+        """Start a background `ResultsScannerWorker` in its own QThread."""
+        # If worker is already running, just update its folder paths
+        if self._results_scanner_worker is not None:
+            self._update_existing_scanner()
+            return
+
+        try:
+            from src.helpers.batch import ResultsScannerWorker
+
+            self._results_scanner_thread = QThread(self)
+            # Use longer interval (5 seconds) to reduce system load
+            self._results_scanner_worker = ResultsScannerWorker(interval_ms=5000)
+
+            paths = self._get_folder_paths_for_scanner()
+            self._results_scanner_worker.set_folder_paths(paths)
+
+            self._results_scanner_worker.moveToThread(self._results_scanner_thread)
+            self._results_scanner_thread.started.connect(
+                self._results_scanner_worker.start_scanning
+            )
+            self._results_scanner_worker.finished.connect(
+                self._results_scanner_thread.quit
+            )
+            # Ensure thread is cleaned up after finishing
+            self._results_scanner_thread.finished.connect(
+                self._results_scanner_thread.deleteLater
+            )
+
+            scan_callback = self._create_scan_result_callback()
+            self._results_scanner_worker.scan_result.connect(scan_callback)
+
+            self._results_scanner_thread.start()
+            logger.debug("Background results scanner started successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to start background results scanner: {e}")
+            # Clean up if initialization failed
+            self._results_scanner_thread = None
+            self._results_scanner_worker = None
+
+    def _stop_results_scanner(self):
+        """Stop the background results scanner if it exists."""
+        try:
+            if self._results_scanner_worker is not None:
+                logger.debug("Stopping background results scanner...")
+                self._results_scanner_worker.stop()
+
+            if self._results_scanner_thread is not None:
+                self._results_scanner_thread.quit()
+                # Wait for thread to finish, but don't block forever
+                if not self._results_scanner_thread.wait(2000):  # Wait up to 2 seconds
+                    logger.warning("Results scanner thread did not stop gracefully")
+                    self._results_scanner_thread.terminate()
+                    self._results_scanner_thread.wait(1000)  # Wait for termination
+
+                # Clean up references
+                self._results_scanner_thread = None
+                self._results_scanner_worker = None
+                logger.debug("Background results scanner stopped successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to stop results scanner: {e}")
+            # Force cleanup even if there was an error
+            self._results_scanner_thread = None
+            self._results_scanner_worker = None
+
+    def closeEvent(self, event):  # noqa: N802 - Qt requires closeEvent signature
+        """Ensure scanner thread is stopped when widget is closed."""
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            self._stop_results_scanner()
+        return super().closeEvent(event)
 
     def _set_default_roi_ranges(self):
         """Set default large ranges for ROI spinboxes."""

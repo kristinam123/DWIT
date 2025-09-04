@@ -429,7 +429,7 @@ def calculate_contact_angles(
         y1_right: Right baseline y-coordinate
         img: Processed image
         filename: Current image filename
-        output_path: Output directory
+        output_path: Output directory (folder where results/files are saved)
         advancing_contact_angles: list of advancing angles (optional)
         receding_contact_angles: list of receding angles (optional)
         q: Current image index (default: 0)
@@ -534,7 +534,7 @@ def calculate_tangent_contact_angles(
         y1_right: Average y-coordinate of the right baseline.
         img: Processed image.
         filename: Current image filename.
-        output_path: Output directory.
+        output_path: Output directory (folder where results/files are saved).
         advancing_contact_angles: List of advancing angles (optional).
         receding_contact_angles: List of receding angles (optional).
         q: Current image index (default: 0).

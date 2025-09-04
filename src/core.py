@@ -130,10 +130,8 @@ class AnalysisCore(QObject):
                 "*.tiff",
             ]
 
-            # Calculated values
-            self.output_path = (
-                self._folder_path + "/Output" if self._folder_path else ""
-            )
+            # Calculated values - output_path is the folder where results are written
+            self.output_path = self._folder_path if self._folder_path else ""
 
             logger.debug(
                 f"AnalysisCore initialization completed successfully for mode: "
@@ -269,8 +267,8 @@ class AnalysisCore(QObject):
             self._folder_path = value
             # Save to settings
             self.save_setting("folderPath", value)
-            # Update output path
-            self.output_path = value + "/Output" if value else ""
+            # Update output path (no 'Output' subfolder)
+            self.output_path = value if value else ""
             self.folder_path_changed.emit(value)
 
     def set_baseline_tf(self, value: bool) -> None:
@@ -382,132 +380,187 @@ class AnalysisCore(QObject):
 
     # region GETTERS
     def load_settings(self) -> None:
-        """Load settings from persistent storage for the current analysis mode."""
+        """Load settings from persistent storage for the current analysis mode.
+
+        This method orchestrates three smaller helpers to keep complexity low:
+        - _load_common_settings: loads values shared across modes
+        - _load_mode_specific_settings: loads mode-dependent defaults
+        - _validate_and_clean_folder_paths: ensures folder lists are valid
+        """
         logger.info(f"Loading settings for analysis mode: {self.analysis_mode}")
 
         try:
+            # Load settings under the analysis-mode group
             self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
-
-            # Load common settings
-            self._pixel = self.settings.value("pixel_per_mm", 55.00, type=float)
-            self._fps = self.settings.value("fps", 100, type=int)
-            self._manual_baseline = self.settings.value("manual_baseline", 0, type=int)
-            self._rotate_angle = self.settings.value("rotateAngle", 0.0, type=float)
-            self._baseline = self.settings.value("baseline", 0, type=int)
-            self._fitting_mode = self.settings.value("fitting_mode", "Arc", type=str)
-            self._polynom = self.settings.value("polynom", 3, type=int)
-
-            if self.analysis_mode == "free_sedimentation":
-                self._y_img = self.settings.value("yImg", 300, type=int)
-                self._h_img = self.settings.value("hImg", 800, type=int)
-                self._x_img = self.settings.value("xImg", 0, type=int)
-                self._w_img = self.settings.value("wImg", 2900, type=int)
-                self._folder_path = self.settings.value(
-                    "folderPath",
-                    "tests/free_sedimentation (BuAc_d_large)",
-                )
-                self._folder_paths = self.settings.value(
-                    "folderPaths",
-                    ["tests/free_sedimentation (BuAc_d_large)"],
-                    type=list,
-                )
-                self._main_folder_path = self.settings.value(
-                    "mainFolderPath",
-                    "tests/free_sedimentation (BuAc_d_large)",
-                    type=str,
-                )
-                self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
-                self._threshold = self.settings.value(
-                    "threshold", 20, type=int
-                )  # Default to 20 for free sedimentation
-                self._rotate_angle = self.settings.value(
-                    "rotateAngle", 0.0, type=float
-                )  # No rotation for free sedimentation
-
-            elif self.analysis_mode == "channel":
-                self._y_img = self.settings.value("yImg", 900, type=int)
-                self._h_img = self.settings.value("hImg", 1200, type=int)
-                self._x_img = self.settings.value("xImg", 0, type=int)
-                self._w_img = self.settings.value("wImg", 2500, type=int)
-                self._folder_path = self.settings.value(
-                    "folderPath", "tests/channel (BuAc_d_large)"
-                )
-                self._folder_paths = self.settings.value(
-                    "folderPaths",
-                    ["tests/channel (BuAc_d_large)"],
-                    type=list,
-                )
-                self._main_folder_path = self.settings.value(
-                    "mainFolderPath",
-                    "tests/channel (BuAc_d_large)",
-                    type=str,
-                )
-                self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
-                self._threshold = self.settings.value(
-                    "threshold", 50, type=int
-                )  # Default to 50 for channel analysis
-                self._rotate_angle = self.settings.value(
-                    "rotateAngle", 45.60, type=float
-                )  # Default to 45.60 degrees for channel analysis
-
-            elif self.analysis_mode == "structured_packing":
-                self._y_img = self.settings.value("yImg", 900, type=int)
-                self._h_img = self.settings.value("hImg", 1300, type=int)
-                self._x_img = self.settings.value("xImg", 0, type=int)
-                self._w_img = self.settings.value("wImg", 2900, type=int)
-                self._folder_path = self.settings.value(
-                    "folderPath",
-                    "tests/structured_packing (BuAc_d_large)",
-                )
-                self._folder_paths = self.settings.value(
-                    "folderPaths",
-                    ["tests/structured_packing (BuAc_d_large)"],
-                    type=list,
-                )
-                self._main_folder_path = self.settings.value(
-                    "mainFolderPath",
-                    "tests/structured_packing (BuAc_d_large)",
-                    type=str,
-                )
-                self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
-                self._threshold = self.settings.value(
-                    "threshold", 20, type=int
-                )  # Default to 20 for structured packings
-                self._rotate_angle = self.settings.value(
-                    "rotateAngle", 0.0, type=float
-                )  # No rotation for structured packings
-
-            else:
-                self._y_img = self.settings.value("yImg", 1300, type=int)
-                self._h_img = self.settings.value("hImg", 1700, type=int)
-                self._x_img = self.settings.value("xImg", 300, type=int)
-                self._w_img = self.settings.value("wImg", 2500, type=int)
-                self._folder_path = self.settings.value(
-                    "folderPath", "tests/contact_wall (BuAc_d_large)"
-                )
-                self._folder_paths = self.settings.value(
-                    "folderPaths",
-                    ["tests/contact_wall (BuAc_d_large)"],
-                    type=list,
-                )
-                self._main_folder_path = self.settings.value(
-                    "mainFolderPath",
-                    "tests/contact_wall (BuAc_d_large)",
-                    type=str,
-                )
-                self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
-                self._threshold = self.settings.value(
-                    "threshold", 50, type=int
-                )  # Default to 50 for other modes
-                self._rotate_angle = self.settings.value(
-                    "rotateAngle", 42.60, type=float
-                )  # Default to 42.60 degrees for other modes
-
+            self._load_common_settings()
+            self._load_mode_specific_settings()
             self.settings.endGroup()
+
+            # Validate and persist cleaned folder paths (may re-open group)
+            self._validate_and_clean_folder_paths()
 
         except Exception as e:
             logger.error(f"Failed to load settings for {self.analysis_mode}: {e}")
             raise
+
+    def _load_common_settings(self) -> None:
+        """Load settings that apply regardless of analysis mode."""
+        self._pixel = self.settings.value("pixel_per_mm", 55.00, type=float)
+        self._fps = self.settings.value("fps", 100, type=int)
+        self._manual_baseline = self.settings.value("manual_baseline", 0, type=int)
+        self._rotate_angle = self.settings.value("rotateAngle", 0.0, type=float)
+        self._baseline = self.settings.value("baseline", 0, type=int)
+        self._fitting_mode = self.settings.value("fitting_mode", "Arc", type=str)
+        self._polynom = self.settings.value("polynom", 3, type=int)
+
+    def _load_mode_specific_settings(self) -> None:
+        """Load settings that depend on the selected analysis mode."""
+        if self.analysis_mode == "free_sedimentation":
+            self._y_img = self.settings.value("yImg", 300, type=int)
+            self._h_img = self.settings.value("hImg", 800, type=int)
+            self._x_img = self.settings.value("xImg", 0, type=int)
+            self._w_img = self.settings.value("wImg", 2900, type=int)
+            self._folder_path = self.settings.value(
+                "folderPath", "tests/free_sedimentation (BuAc_d_large)"
+            )
+            self._folder_paths = self.settings.value(
+                "folderPaths", ["tests/free_sedimentation (BuAc_d_large)"], type=list
+            )
+            self._main_folder_path = self.settings.value(
+                "mainFolderPath", "tests/free_sedimentation (BuAc_d_large)", type=str
+            )
+            self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
+            self._threshold = self.settings.value("threshold", 20, type=int)
+            self._rotate_angle = self.settings.value("rotateAngle", 0.0, type=float)
+
+        elif self.analysis_mode == "channel":
+            self._y_img = self.settings.value("yImg", 900, type=int)
+            self._h_img = self.settings.value("hImg", 1200, type=int)
+            self._x_img = self.settings.value("xImg", 0, type=int)
+            self._w_img = self.settings.value("wImg", 2500, type=int)
+            self._folder_path = self.settings.value(
+                "folderPath", "tests/channel (BuAc_d_large)"
+            )
+            self._folder_paths = self.settings.value(
+                "folderPaths", ["tests/channel (BuAc_d_large)"], type=list
+            )
+            self._main_folder_path = self.settings.value(
+                "mainFolderPath", "tests/channel (BuAc_d_large)", type=str
+            )
+            self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
+            self._threshold = self.settings.value("threshold", 50, type=int)
+            self._rotate_angle = self.settings.value("rotateAngle", 45.60, type=float)
+
+        elif self.analysis_mode == "structured_packing":
+            self._y_img = self.settings.value("yImg", 900, type=int)
+            self._h_img = self.settings.value("hImg", 1300, type=int)
+            self._x_img = self.settings.value("xImg", 0, type=int)
+            self._w_img = self.settings.value("wImg", 2900, type=int)
+            self._folder_path = self.settings.value(
+                "folderPath", "tests/structured_packing (BuAc_d_large)"
+            )
+            self._folder_paths = self.settings.value(
+                "folderPaths", ["tests/structured_packing (BuAc_d_large)"], type=list
+            )
+            self._main_folder_path = self.settings.value(
+                "mainFolderPath", "tests/structured_packing (BuAc_d_large)", type=str
+            )
+            self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
+            self._threshold = self.settings.value("threshold", 20, type=int)
+            self._rotate_angle = self.settings.value("rotateAngle", 0.0, type=float)
+
+        else:
+            self._y_img = self.settings.value("yImg", 1300, type=int)
+            self._h_img = self.settings.value("hImg", 1700, type=int)
+            self._x_img = self.settings.value("xImg", 300, type=int)
+            self._w_img = self.settings.value("wImg", 2500, type=int)
+            self._folder_path = self.settings.value(
+                "folderPath", "tests/contact_wall (BuAc_d_large)"
+            )
+            self._folder_paths = self.settings.value(
+                "folderPaths", ["tests/contact_wall (BuAc_d_large)"], type=list
+            )
+            self._main_folder_path = self.settings.value(
+                "mainFolderPath", "tests/contact_wall (BuAc_d_large)", type=str
+            )
+            self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
+            self._threshold = self.settings.value("threshold", 50, type=int)
+            self._rotate_angle = self.settings.value("rotateAngle", 42.60, type=float)
+
+    def _validate_and_clean_folder_paths(self) -> None:
+        """Validate stored folder paths, persist cleaned results and emit signals."""
+        try:
+            paths = self._normalize_folder_paths(self._folder_paths)
+            cleaned_paths = [p for p in paths if p and os.path.isdir(p)]
+
+            # Log missing entries
+            for p in paths:
+                if p and p not in cleaned_paths:
+                    logger.warning(
+                        "Stored folder path does not exist and was " f"removed: {p}"
+                    )
+
+            # If nothing changed, emit signals and return
+            if cleaned_paths == getattr(self, "_folder_paths", []):
+                try:
+                    self.folder_paths_changed.emit(self._folder_paths)
+                    self.main_folder_path_changed.emit(self._main_folder_path or "")
+                except Exception:
+                    pass
+                return
+
+            # Update internal state and persist changes
+            self._folder_paths = cleaned_paths
+            self._persist_cleaned_folder_paths()
+
+            try:
+                self.folder_paths_changed.emit(self._folder_paths)
+                self.main_folder_path_changed.emit(self._main_folder_path or "")
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error(f"Error validating stored folder paths: {e}")
+
+    def _normalize_folder_paths(self, paths) -> list:
+        """Return a list of folder paths normalized from stored value."""
+        if isinstance(paths, str):
+            return [paths]
+        if isinstance(paths, list):
+            return paths
+        try:
+            return list(paths or [])
+        except Exception:
+            return []
+
+    def _persist_cleaned_folder_paths(self) -> None:
+        """Persist cleaned folder paths and ensure main/folderPath stay valid."""
+        try:
+            self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
+            self.settings.setValue("folderPaths", self._folder_paths)
+
+            # If main folder no longer exists, set to first or clear
+            if not self._main_folder_path or not os.path.isdir(self._main_folder_path):
+                if self._folder_paths:
+                    self._main_folder_path = self._folder_paths[0]
+                    self.settings.setValue("mainFolderPath", self._main_folder_path)
+                else:
+                    self._main_folder_path = ""
+                    self.settings.setValue("mainFolderPath", "")
+
+            # If folderPath (current single folder) is missing, fix it
+            if not self._folder_path or not os.path.isdir(self._folder_path):
+                if self._main_folder_path:
+                    self._folder_path = self._main_folder_path
+                    self.settings.setValue("folderPath", self._folder_path)
+                else:
+                    self._folder_path = ""
+                    self.settings.setValue("folderPath", "")
+
+            self.settings.endGroup()
+            self.settings.sync()
+        except Exception as e:
+            logger.error(f"Failed to persist cleaned folder paths: {e}")
 
     # Property getters and setters
     def get_folder_path(self) -> str:
@@ -646,11 +699,11 @@ class AnalysisCore(QObject):
             image_files, preview_middle
         )
 
-        # csv_file_path is in "Output" folder under "results_raw.csv"
-        csv_file_path = os.path.join(self.output_path, "results_raw.csv")
+        # xlsx_file_path is in the selected output folder under "results_raw.xlsx"
+        xlsx_file_path = os.path.join(self.output_path, "results_raw.xlsx")
         # Process images and return results - pass all files for background creation
         return self._main(
-            csv_file_path,
+            xlsx_file_path,
             process_files,
             save_files,
             progress_callback,
@@ -817,7 +870,7 @@ class AnalysisCore(QObject):
 
     def _main(
         self,
-        csv_file_path: str,
+        xlsx_file_path: str,
         files: list[str],
         save_files: bool,
         progress_callback: Optional[Callable] = None,
@@ -1529,7 +1582,45 @@ class AnalysisCore(QObject):
 
         # Only save results if explicitly requested AND not stopped
         if save_files and not was_stopped and not processing_stopped:
-            save_results(self.output_path, time, result_lists)
+            try:
+                # Build parameters dict from core attributes
+                parameters = {
+                    "pixel": getattr(self, "pixel", None),
+                    "fps": getattr(self, "fps", None),
+                    "threshold": getattr(self, "threshold", None),
+                    "rotate_angle": getattr(self, "rotate_angle", None),
+                    "baseline": getattr(self, "baseline", None),
+                    "fitting_mode": getattr(self, "fitting_mode", None),
+                    "polynom": getattr(self, "polynom", None),
+                    "baseline_tf": getattr(self, "baseline_tf", None),
+                    "manual_baseline": getattr(self, "manual_baseline", None),
+                    "x_img": getattr(self, "x_img", None),
+                    "y_img": getattr(self, "y_img", None),
+                    "w_img": getattr(self, "w_img", None),
+                    "h_img": getattr(self, "h_img", None),
+                }
+
+                folder_name = os.path.basename(
+                    self.output_path or self._folder_path or ""
+                )
+                # files may be a list of paths - join basenames with semicolon
+                file_names = None
+                try:
+                    if files:
+                        file_names = ";".join([os.path.basename(f) for f in files])
+                except Exception:
+                    file_names = None
+
+                save_results(
+                    self.output_path,
+                    time,
+                    result_lists,
+                    parameters=parameters,
+                    folder_name=folder_name,
+                    file_names=file_names,
+                )
+            except Exception as e:
+                logger.error(f"Failed to save results with metadata: {e}")
 
     def _process_image_thread(
         self,

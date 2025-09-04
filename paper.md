@@ -83,7 +83,7 @@ The image analysis pipeline is central to Droplet Wall Interaction Tool. It cons
 9. **Calculate Center Points:** Computes droplet center for velocity/tracking.
 10. **Calculate Velocity:** Computes velocity from center point trajectory.
 11. **Save Results (Excel):** Saves raw results to an Excel file with consistent formatting.
-  - Implementation detail: per-frame overlays are saved under `<trial>/Output/`; the Excel file is written to the parent of `Output` (i.e., directly under `<trial>`) with a sanitized name like `<trial>_results_raw.xlsx`.
+  - Implementation detail: per-frame overlays are saved under the selected folder; the Excel file is written to the same folder as `results_raw.xlsx`.
 
 ## Usage Example: Batch Analysis
 
@@ -95,7 +95,7 @@ The image analysis pipeline is central to Droplet Wall Interaction Tool. It cons
 4. Add the trial folders to the analysis queue using the **Add Folder** button.
 5. Adjust analysis parameters (ROI, threshold, baseline) as needed.
 6. Use **Preview** to verify settings or **Full Analysis** to process all queued trials.
-7. Per-frame overlays are saved to `<trial>/Output/`. The raw-results Excel is saved to `<trial>/<trial>_results_raw.xlsx`.
+7. Per-frame overlays are saved to the selected folder. The raw-results Excel is saved to `<trial>/results_raw.xlsx`.
 
 # Citations
 

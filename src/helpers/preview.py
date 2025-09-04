@@ -14,6 +14,10 @@ from src.utilities.logging_manager import get_logger
 _preview_dialog = None
 _preview_timer = None
 
+# Opacity for the floating preview dialog (0.0 fully transparent, 1.0 opaque)
+# Reduced from 0.8 to 0.55 to make it more see-through per user request.
+PREVIEW_DIALOG_OPACITY = 0.8
+
 
 # Setup logger for this module
 logger = get_logger(__name__)
@@ -174,7 +178,7 @@ def _create_new_dialog(scaled_pixmap, parent, screen_geometry):
         | Qt.WindowTransparentForInput
         | Qt.WindowDoesNotAcceptFocus
     )
-    _preview_dialog.setWindowOpacity(0.8)
+    _preview_dialog.setWindowOpacity(PREVIEW_DIALOG_OPACITY)
     label = QLabel(_preview_dialog)
     label.setPixmap(scaled_pixmap)
     label.setAlignment(Qt.AlignCenter)

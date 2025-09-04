@@ -3,8 +3,12 @@
 For folder-based analysis in Droplet Wall Interaction Tool.
 """
 
-from PySide6.QtCore import QObject, QSize, QThread, Signal
-from PySide6.QtWidgets import QStyledItemDelegate
+import contextlib
+import os
+
+from PySide6.QtCore import QObject, QRect, QSize, Qt, QThread, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from src.utilities.logging_manager import get_logger
 
@@ -20,15 +24,133 @@ class FolderItemDelegate(QStyledItemDelegate):
         """Initialize the FolderItemDelegate."""
         super().__init__(parent)
         self.progress_data = {}  # {row: progress_value}
+        self.results_presence = {}  # {row: bool} whether results_raw.xlsx exists
+
+    def set_results_presence(self, row, has_results: bool):
+        """Set whether a folder (row) has results file present."""
+        self.results_presence[row] = bool(has_results)
+
+    def clear_results_presence(self):
+        """Clear all results presence data."""
+        self.results_presence = {}
 
     def set_progress(self, row, progress_value):
         """Set progress value for a row (0-100, or -1 for error)."""
         self.progress_data[row] = progress_value
 
     def size_hint(self, option, index):
-        """Return a slightly larger size to accommodate the shortened path."""
+        """Return a larger size to accommodate path and progress bar."""
         base_size = super().size_hint(option, index)
-        return QSize(base_size.width(), base_size.height() + 6)  # Add a bit more height
+        # Add more height for progress bar
+        return QSize(base_size.width(), base_size.height() + 10)
+
+    def paint(self, painter, option, index):
+        """Draw an indicator left of the item text and progress bar below."""
+        try:
+            row = index.row()
+
+            # Choose colors based on presence
+            has_results = self.results_presence.get(row, False)
+            # green if results, gray otherwise
+            circle_color = QColor(0, 170, 0) if has_results else QColor(150, 150, 150)
+
+            icon_size = 14
+            spacing = 8
+
+            painter.save()
+
+            # Draw the filled circle
+            circle_rect = QRect(
+                option.rect.left() + 4,
+                option.rect.top() + (option.rect.height() - icon_size) // 2 - 2,
+                icon_size,
+                icon_size,
+            )
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(circle_color)
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(circle_rect)
+
+            # If has_results draw simple white checkmark
+            if has_results:
+                pen = QPen(Qt.white)
+                pen.setWidth(2)
+                painter.setPen(pen)
+                # draw two-line checkmark
+                x = circle_rect.left()
+                y = circle_rect.top()
+                w = circle_rect.width()
+                h = circle_rect.height()
+                painter.drawLine(
+                    x + int(w * 0.22),
+                    y + int(h * 0.53),
+                    x + int(w * 0.45),
+                    y + int(h * 0.75),
+                )
+                painter.drawLine(
+                    x + int(w * 0.45),
+                    y + int(h * 0.75),
+                    x + int(w * 0.8),
+                    y + int(h * 0.3),
+                )
+
+            # Draw progress bar
+            progress_value = self.progress_data.get(row, 0)
+
+            # If folder has results, show 100% progress
+            if has_results:
+                progress_value = 100
+
+            # Only draw progress bar if we have some progress or completed folder
+            if progress_value > 0 or has_results:
+                # Progress bar dimensions - very thin line
+                progress_height = 2
+                progress_margin = 4
+
+                # Full progress bar background (light gray)
+                progress_bg_rect = QRect(
+                    option.rect.left() + progress_margin,
+                    option.rect.bottom() - progress_height - 2,
+                    option.rect.width() - 2 * progress_margin,
+                    progress_height,
+                )
+
+                painter.setBrush(QColor(200, 200, 200))
+                painter.setPen(Qt.NoPen)
+                painter.drawRect(progress_bg_rect)
+
+                # Progress fill - same green as checkmark
+                if progress_value > 0:
+                    progress_width = int(
+                        (progress_bg_rect.width() * min(progress_value, 100)) / 100
+                    )
+                    if progress_width > 0:
+                        progress_fill_rect = QRect(
+                            progress_bg_rect.left(),
+                            progress_bg_rect.top(),
+                            progress_width,
+                            progress_height,
+                        )
+
+                        painter.setBrush(QColor(0, 170, 0))  # Same green as checkmark
+                        painter.drawRect(progress_fill_rect)
+
+            painter.restore()
+
+            # Shift the option rect to the right so the base painting doesn't overlap
+            # Also shift up slightly to make room for progress bar
+            opt = QStyleOptionViewItem(option)
+            opt.rect = QRect(
+                option.rect.left() + icon_size + spacing,
+                option.rect.top(),
+                option.rect.width() - icon_size - spacing,
+                option.rect.height() - 4,  # Leave space for progress bar at bottom
+            )
+
+            super().paint(painter, opt, index)
+        except Exception:
+            # Fallback to default painting on error
+            super().paint(painter, option, index)
 
 
 # Modify the BatchProcessingWorker class to report image-by-image progress
@@ -62,6 +184,8 @@ class BatchProcessingWorker(QObject):
         # Add new state variables for pause and stop functionality
         self.is_paused = False
         self.should_stop = False
+        # Flag to request skipping the current folder (continue to next)
+        self.should_skip_current = False
 
         logger.debug(
             f"BatchProcessingWorker initialized with {len(folder_paths)} folders"
@@ -108,18 +232,34 @@ class BatchProcessingWorker(QObject):
 
                 if self.should_stop:
                     break
-                    # Set the current folder path in the controller
+                # Reset skip flag at start of folder
+                self.should_skip_current = False
+
+                # Set the current folder path in the controller
                 self.controller.set_folder_path(folder_path)
 
                 # Process the folder
                 results = self.controller.process_images(
                     lambda progress, *args: self._folder_progress_callback(
-                        i, current_folder, total_folders, folder_path, progress, *args
+                        i,
+                        current_folder,
+                        total_folders,
+                        folder_path,
+                        progress,
+                        *args,
                     ),
-                    save_files=True and not self.should_stop,
+                    save_files=(
+                        True and not self.should_stop and not self.should_skip_current
+                    ),
                     preview_middle=False,
                     use_first_as_background=False,
                 )
+
+                # If skip was requested mid-processing, mark folder as skipped
+                if self.should_skip_current:
+                    logger.info(f"Folder skipped by user: {folder_path}")
+                    self.folder_completed.emit(i, folder_path, False)
+                    continue
 
                 # If we're stopping, don't emit completion signals
                 if self.should_stop:
@@ -169,6 +309,11 @@ class BatchProcessingWorker(QObject):
         self.is_paused = False  # Also clear pause state when stopping
         logger.info("Batch processing stop requested")
 
+    def skip_current_folder(self):
+        """Request skipping the current folder after current image finishes."""
+        self.should_skip_current = True
+        logger.info("Skip current folder requested")
+
     def _folder_progress_callback(
         self, folder_index, current_folder, total_folders, folder_path, progress, *args
     ):
@@ -208,4 +353,100 @@ class BatchProcessingWorker(QObject):
         if self.should_stop:
             return False
 
+        # If we should skip current folder, return False to break controller loop
+        if self.should_skip_current:
+            return False
+
         return not self.is_paused
+
+
+class ResultsScannerWorker(QObject):
+    """Worker that periodically scans a list of folders for presence of results file.
+
+    Emits `scan_result` with (folder_index:int, folder_path:str, has_results:bool)
+    and `finished` when stopped.
+    """
+
+    scan_result = Signal(int, str, bool)
+    finished = Signal()
+
+    def __init__(self, parent=None, interval_ms: int = 5000):
+        """Initialize the ResultsScannerWorker."""
+        super().__init__(parent)
+        self.interval_ms = max(int(interval_ms), 2000)  # Minimum 2 seconds
+        self._running = False
+        self._folder_paths = []
+        self._stop_requested = False
+
+    def set_folder_paths(self, folder_paths: list[str]):
+        """Set the list of folder paths to scan."""
+        try:
+            self._folder_paths = list(folder_paths) if folder_paths else []
+        except Exception:
+            self._folder_paths = []
+
+    def _check_single_folder(self, folder_path: str) -> bool:
+        """Check if a single folder has results file."""
+        if not folder_path or not isinstance(folder_path, str):
+            return False
+
+        try:
+            if not (os.path.exists(folder_path) and os.path.isdir(folder_path)):
+                return False
+            results_path = os.path.join(folder_path, "results_raw.xlsx")
+            return os.path.exists(results_path)
+        except (
+            OSError,
+            PermissionError,
+            FileNotFoundError,
+            TypeError,
+            ValueError,
+        ):
+            return False
+        except Exception:
+            return False
+
+    def _emit_scan_result(self, i: int, folder_path: str, has: bool):
+        """Safely emit scan result."""
+        if self._stop_requested or not self._running:
+            return
+        with contextlib.suppress(Exception):
+            self.scan_result.emit(i, folder_path, has)
+
+    def _interruptible_sleep(self, total_ms: int):
+        """Sleep for total_ms but check for stop requests every 200ms."""
+        sleep_remaining = total_ms
+        while sleep_remaining > 0 and self._running and not self._stop_requested:
+            sleep_chunk = min(sleep_remaining, 200)
+            QThread.msleep(sleep_chunk)
+            sleep_remaining -= sleep_chunk
+
+    def start_scanning(self):
+        """Start the scanning loop."""
+        self._running = True
+        self._stop_requested = False
+
+        while self._running and not self._stop_requested:
+            try:
+                current_paths = self._folder_paths.copy()
+
+                for i, folder_path in enumerate(current_paths):
+                    if self._stop_requested or not self._running:
+                        break
+
+                    has = self._check_single_folder(folder_path)
+                    self._emit_scan_result(i, folder_path, has)
+
+                self._interruptible_sleep(self.interval_ms)
+
+            except Exception:
+                # If something goes wrong, sleep and continue
+                if self._running and not self._stop_requested:
+                    QThread.msleep(1000)
+
+        self.finished.emit()
+
+    def stop(self):
+        """Stop scanning after the current loop iteration."""
+        self._stop_requested = True
+        self._running = False

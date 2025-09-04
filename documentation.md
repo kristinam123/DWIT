@@ -129,7 +129,7 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 - Structured packing
     - Detects two vertical lines (left/right packing edges). Reports first-contact flags and may compute discontinuous velocity. No contact angles.
 
-Note: Per-frame overlays are saved to <folder>/Output/. The Excel with raw results is saved next to Output (parent folder) as <folder>_results_raw.xlsx with a sanitized name.
+Note: Per-frame overlays are saved to the selected folder. The Excel file with raw results is saved in the same folder as `results_raw.xlsx`.
 
 ---
 
@@ -173,7 +173,7 @@ Note: Per-frame overlays are saved to <folder>/Output/. The Excel with raw resul
 
 Notes:
 - Channel mode requires externally provided baselines; otherwise intersection/contact metrics are skipped and stored as NaN.
-- Overlays are saved under <folder>/Output/, while the Excel file is saved to the parent of Output as <folder>_results_raw.xlsx.
+- Per-frame overlays are saved under the selected folder, while the Excel file is saved in the same folder as `results_raw.xlsx`.
 
 ---
 
@@ -248,7 +248,7 @@ Drives analysis operations, exposes Qt Properties/Signals, and persists per-mode
 - Pipeline: rotate + crop → background → threshold/contour → intersections/lines → metrics → save.
 - Modes: `free_sedimentation`, `contact_angle`, `channel`, `structured_packing`.
 - Fitting: Arc (default), Tangent, Polynom, Ellipse.
- - Saving: Per-frame overlays to `<folder>/Output/`; raw Excel is written to the parent of Output as `<folder>_results_raw.xlsx`.
+ - Saving: Per-frame overlays to the selected folder; raw Excel is written to the same folder as `results_raw.xlsx`.
 
 **Properties** (subset):
 - Paths: `folder_path`, `folder_paths`, `main_folder_path`.
@@ -1327,7 +1327,7 @@ show_preview(pixmap, parent_widget)
 **File Path**: `/src/helpers/save_results.py`
 
 **Purpose**:
-Export module for saving raw measurement results to Excel in the Droplet Wall Interaction Tool. Excel is saved to the parent of the Output directory as `<folder>_results_raw.xlsx` (sanitized). Overlays are saved separately under `<folder>/Output/` by the pipeline.
+Export module for saving raw measurement results to Excel in the Droplet Wall Interaction Tool. The Excel file is saved to the selected folder as `results_raw.xlsx`. Overlays are saved to the selected folder as well.
 
 **Key Functions**:
 
@@ -1344,7 +1344,8 @@ Main function to save measurement results to an Excel file.
 - Handles different data types and shapes (fills missing with NaN)
 - Includes error handling, path sanitization, and alternative filename fallback
 - Exports optional fields when present (e.g., `Discontinuous Velocity [px/s]`, `[mm/s]`)
- - Writes Excel to the parent folder of `output_dir` (which should be `<folder>/Output/`) using a sanitized `<folder>_results_raw.xlsx` name
+ - Writes Excel directly to `output_dir` using the filename `results_raw.xlsx`
+ - Writes Excel directly to `output_dir` using the filename `results_raw.xlsx`
 
 #### `_save_dataframe_to_excel(data_dict, output_dir, filename)`
 Saves a data dictionary to Excel with consistent formatting and error handling.
@@ -1390,7 +1391,7 @@ result_lists = {
     'discontinuous_velocity_mm_s': float('nan'),
 }
 
-save_results('trial_folder/Output', times, result_lists)  # Excel will be saved to 'trial_folder/<sanitized>_results_raw.xlsx'
+save_results('trial_folder', times, result_lists)  # Excel will be saved to 'trial_folder/results_raw.xlsx'
 ```
 
 **Maintenance Notes**:

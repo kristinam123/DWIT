@@ -571,6 +571,15 @@ if __name__ == "__main__":
         dwit.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
         dwit.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
 
+        # Ensure application icon is set at the QApplication level so
+        # it is used by the OS (taskbar / alt-tab on Windows)
+        icon_path = os.path.join(os.path.dirname(__file__), "resources", "avt.ico")
+        if os.path.exists(icon_path):
+            try:
+                dwit.setWindowIcon(QIcon(icon_path))
+            except Exception:
+                logger.debug("Failed to set QApplication icon")
+
         # Set up memory management
         gc_timer = setup_memory_management()
 

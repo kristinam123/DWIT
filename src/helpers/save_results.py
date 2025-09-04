@@ -20,57 +20,60 @@ def save_results(
     output_dir: str,
     times: list[Union[float, str]],
     result_lists: dict[str, list[Union[float, str]]],
+    parameters: dict | None = None,
+    folder_name: str | None = None,
+    file_names: str | None = None,
 ) -> None:
     """Save measurement results to Excel in the specified directory.
 
     Args:
     ----
         output_dir: Directory to save results
-            (Excel is written to the parent of this Output directory)
+        (Excel is written directly into this directory as `results_raw.xlsx`)
         times: Time values per frame (seconds or index)
         result_lists: Dictionary containing measurement results
             (see documentation for expected keys)
 
-    """
-    logger.debug(
-        f"save_results called with times: {len(times)}, "
-        f"result_lists keys: {list(result_lists.keys())}"
-    )
+        parameters: Optional dictionary of analysis parameters to save alongside
+            the results (e.g., pixel, fps, threshold, rotate_angle, etc.).
+        folder_name: Optional short folder name (not full path) where the
+            image series resides. This will be saved in a `Folder` column.
+        file_names: Optional file names (including extension) of the image
+            series used for analysis. This will be saved in a `FileName` column.
 
+    """
     # Extract and process data from result_lists
     extracted_data = _extract_data_from_results(result_lists, len(times))
-    logger.debug(f"Extracted data keys: {list(extracted_data.keys())}")
 
     # Check for data availability
     availability = _check_data_availability(extracted_data)
-    logger.debug(f"Data availability: {availability}")
 
     # Extract center coordinates
     coordinates = _extract_center_coordinates(
         extracted_data["centers"], extracted_data["centers_mm"]
     )
-    logger.debug(f"Extracted coordinates: {coordinates}")
 
     # Create raw data dictionary
     raw_data = _create_raw_data_dict(times, extracted_data, coordinates, availability)
-    logger.debug(f"Raw data keys: {list(raw_data.keys())}")
 
-    # Save raw data with specific formatting
-    # Save Excel file in parent of Output, prefix with folder name
-    parent_dir = os.path.dirname(output_dir.rstrip(os.sep))
-    folder_name = os.path.basename(parent_dir)
-    # Sanitize folder name for filename: remove invalid/special characters
-    import re
+    # Prepare metadata rows and FileName column values using helpers
+    meta_rows = _prepare_meta_rows(folder_name, parameters)
+    file_col_values = _prepare_file_col_values(file_names, times)
 
-    sanitized_folder_name = re.sub(r'[\\/:*?"<>|]', "_", folder_name)
-    # Warn if non-ASCII characters are present
-    if not all(ord(c) < 128 for c in sanitized_folder_name):
-        logger.warning(
-            f"Folder name '{folder_name}' contains non-ASCII characters. "
-            f"This may cause issues on some systems."
-        )
-    excel_filename = f"{sanitized_folder_name}_results_raw.xlsx"
-    _save_dataframe_to_excel(raw_data, parent_dir, excel_filename)
+    # Assemble final data dict with FileName and Time columns first
+    data_with_files = _assemble_data_with_files(raw_data, times, file_col_values)
+
+    # Save raw data with specific formatting. Write a file named
+    # `results_raw.xlsx` directly into the provided `output_dir`.
+    excel_filename = "results_raw.xlsx"
+    # Ensure the output directory exists
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed to create output directory '{output_dir}': {e}")
+        # Fall back to current directory
+        output_dir = os.getcwd()
+    _save_dataframe_to_excel(data_with_files, output_dir, excel_filename, meta_rows)
 
 
 def _extract_data_from_results(result_lists, num_times):
@@ -205,7 +208,12 @@ def _extract_center_coordinates(centers, centers_mm):
         and len(centers_mm[0]) >= 2
     ):
         for point in centers_mm:
-            if isinstance(point, (list, tuple)) and len(point) >= 2:
+            if (
+                isinstance(point, (list, tuple))
+                and len(point) >= 2
+                and point[0] is not None
+                and point[1] is not None
+            ):
                 centers_x_mm.append(float(point[0]))
                 centers_y_mm.append(float(point[1]))
             else:
@@ -267,7 +275,7 @@ def _create_raw_data_dict(times, extracted_data, coordinates, availability):
     return raw_data
 
 
-def _save_dataframe_to_excel(data_dict, output_dir, filename):
+def _save_dataframe_to_excel(data_dict, output_dir, filename, meta_rows=None):
     """Save a data dictionary to Excel with consistent formatting and error handling.
 
     Args:
@@ -276,6 +284,7 @@ def _save_dataframe_to_excel(data_dict, output_dir, filename):
         output_dir: Directory to save the Excel file
         filename: Excel filename
         description: Description
+        meta_rows: Optional list of (key, value) tuples to write above the table
 
     """
     excel_path = os.path.join(output_dir, filename)
@@ -293,11 +302,37 @@ def _save_dataframe_to_excel(data_dict, output_dir, filename):
             padded_values = values
         df_data[key] = padded_values
 
-    # Create DataFrame
+    # Create DataFrame for the main table
     df = pd.DataFrame(df_data)
 
     try:
-        # Save DataFrame to Excel file with NaN/INF handling
+        # Use pandas ExcelWriter (let pandas pick the available engine).
+        # If meta_rows are provided, write them as a two-column block above the table.
+        if meta_rows:
+            try:
+                with pd.ExcelWriter(excel_path) as writer:
+                    meta_df = pd.DataFrame(meta_rows)
+                    meta_df.to_excel(
+                        writer, sheet_name="Sheet1", index=False, header=False
+                    )
+                    df.to_excel(
+                        writer,
+                        sheet_name="Sheet1",
+                        index=False,
+                        startrow=len(meta_rows) + 1,
+                        na_rep="",
+                        float_format="%.6f",
+                    )
+                logger.info(
+                    f"Successfully saved Excel file with metadata: {excel_path}"
+                )
+                return True
+            except Exception as e:
+                logger.warning(
+                    f"Failed to write Excel with metadata using pandas ExcelWriter: {e}"
+                )
+
+        # Try to save DataFrame to Excel without metadata
         df.to_excel(excel_path, index=False, na_rep="", float_format="%.6f")
         logger.info(f"Successfully saved Excel file: {excel_path}")
         return True
@@ -321,3 +356,80 @@ def _save_dataframe_to_excel(data_dict, output_dir, filename):
             except (PermissionError, OSError) as e:
                 logger.error(f"Failed to save Excel file with alternative name: {e}")
         return False
+
+
+def _prepare_meta_rows(folder_name, parameters):
+    """Prepare metadata rows (Folder and parameters) for Excel export.
+
+    Returns a list of (key, value) tuples.
+    """
+    meta_rows: list[tuple[str, str]] = []
+    if folder_name:
+        try:
+            meta_rows.append(("Folder", os.path.basename(folder_name)))
+        except Exception:
+            meta_rows.append(("Folder", str(folder_name)))
+    else:
+        meta_rows.append(("Folder", ""))
+
+    params = parameters or {}
+    caption_map = {
+        "pixel": "Pixel [px/mm]",
+        "fps": "FPS [1/s]",
+        "threshold": "Threshold",
+        "rotate_angle": "Rotate Angle [Deg]",
+        "baseline": "Baseline Offset [px]",
+        "fitting_mode": "Fitting Mode",
+        "polynom": "Polynom",
+        "baseline_tf": "Manual Baseline On",
+        "manual_baseline": "Manual Baseline Height [px]",
+        "x_img": "ROI X [px]",
+        "y_img": "ROI Y [px]",
+        "w_img": "ROI W [px]",
+        "h_img": "ROI H [px]",
+    }
+
+    for key, val in params.items():
+        caption = caption_map.get(key, str(key))
+        meta_rows.append((caption, "" if val is None else str(val)))
+
+    return meta_rows
+
+
+def _prepare_file_col_values(file_names, times):
+    """Prepare `FileName` column values matching the length of `times`.
+
+    Handles single string, semicolon-separated strings, lists, and errors.
+    """
+    if file_names:
+        try:
+            if isinstance(file_names, str) and ";" in file_names:
+                parts = [p for p in file_names.split(";") if p]
+            elif isinstance(file_names, str):
+                parts = [file_names]
+            else:
+                parts = list(file_names)
+            basenames = [os.path.basename(p) for p in parts]
+            if len(basenames) == len(times):
+                return basenames
+            if len(basenames) > 0:
+                return [basenames[0]] * len(times)
+            return [""] * len(times)
+        except Exception:
+            return [str(file_names)] * len(times)
+    return [""] * len(times)
+
+
+def _assemble_data_with_files(raw_data, times, file_col_values):
+    """Ensure 'Time' exists and assemble final data dict with FileName first.
+
+    Returns a new dict suitable for DataFrame construction.
+    """
+    if "Time" not in raw_data:
+        raw_data["Time"] = times
+
+    data_with_files = {"FileName": file_col_values}
+    data_with_files["Time"] = raw_data.pop("Time")
+    for key, val in raw_data.items():
+        data_with_files[key] = val
+    return data_with_files

@@ -280,6 +280,11 @@ def rotate_image(image, angle):
         Rotated image with expanded canvas to avoid clipping corners
 
     """
+    # Defensive: check for None input
+    if image is None:
+        logger.error("rotate_image called with None image")
+        return None
+
     # dont rotate if angle is 0
     effective_angle = 90 if angle == 0 else 180 - angle
 
