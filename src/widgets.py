@@ -323,8 +323,7 @@ class FolderDropZone(QFrame):
 
         # Create a label for the text
         self.label = QLabel(
-            "Drag and drop folders <b><u>here</u></b> - "
-            "intelligent folder search included"
+            "Drag and drop folders <b><u>here</u></b> - " "folder search included"
         )
         self.label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
@@ -998,7 +997,7 @@ class AnalysisGUI(QWidget):
         self.help_btn = QPushButton()
         self.help_btn.setText("?")
         self.help_btn.setFixedSize(32, 32)
-        self.help_btn.setToolTip("Click to learn about intelligent folder detection")
+        self.help_btn.setToolTip("Click to learn about folder detection")
         self.help_btn.clicked.connect(self._show_folder_detection_help)
         # Style the help button as a gray circle with white question mark
         self.help_btn.setStyleSheet(
@@ -2912,15 +2911,15 @@ class AnalysisGUI(QWidget):
             pass
 
     def _show_folder_detection_help(self):
-        """Show help dialog explaining the intelligent folder detection."""
+        """Show help dialog explaining the folder detection."""
         from PySide6.QtWidgets import QMessageBox
 
         msg = QMessageBox(self)
-        msg.setWindowTitle("Intelligent Folder Detection")
+        msg.setWindowTitle("Folder Detection")
         msg.setIcon(QMessageBox.Information)
 
         help_text = (
-            "<b>How Intelligent Folder Detection Works:</b><br><br>"
+            "<b>How Folder Detection Works:</b><br><br>"
             "When you add a folder (via drag-and-drop or 'Add Folders' button), "
             "the application automatically:<br><br>"
             "• <b>Scans</b> the folder and all its subfolders<br>"
@@ -3905,19 +3904,45 @@ class AnalysisGUI(QWidget):
             logger.error(f"Failed to scan folder results immediately: {e}")
 
     def _create_scan_result_callback(self):
-        """Create callback function for scan results."""
+        """Create callback function for scan results.
+
+        The returned callback safely locates the current list item matching
+        a scanned `folder_path` and updates the delegate. This avoids using
+        stale indices when the user adds/removes folders while the scanner
+        is running.
+        """
 
         def _on_scan_result(idx, folder_path, has):
-            try:
-                if hasattr(self, "folder_delegate") and self.folder_delegate:
+            import contextlib
+
+            # If delegate is missing there's nothing to do
+            if not getattr(self, "folder_delegate", None):
+                return
+
+            list_widget = getattr(self, "folder_list", None)
+
+            # If list widget is missing, attempt a positional update but
+            # suppress any errors (defensive fallback)
+            if list_widget is None:
+                with contextlib.suppress(Exception):
                     self.folder_delegate.set_results_presence(idx, has)
-                if hasattr(self, "folder_list") and self.folder_list:
-                    self.folder_list.update(self.folder_list.model().index(idx, 0))
-            except (AttributeError, RuntimeError):
-                # Widget may have been destroyed
-                pass
-            except Exception:
-                pass
+                return
+
+            # Find the current index matching the folder path
+            target_index = None
+            for i in range(list_widget.count()):
+                with contextlib.suppress(Exception):
+                    if list_widget.item(i).data(Qt.UserRole) == folder_path:
+                        target_index = i
+                        break
+
+            if target_index is None:
+                return
+
+            # Update delegate and refresh the specific item
+            self.folder_delegate.set_results_presence(target_index, has)
+            with contextlib.suppress(Exception):
+                list_widget.update(list_widget.model().index(target_index, 0))
 
         return _on_scan_result
 
