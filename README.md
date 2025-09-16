@@ -98,7 +98,7 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 3. Add or remove folders for batch processing as needed.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
-6. Outputs: per-frame overlays are saved under `<your_folder>/` (no `Output` subfolder is created by default); a raw-results Excel file is saved in the same folder with the fixed name `results_raw.xlsx`.
+6. Outputs: per-frame overlays are saved under `<your_folder>/`; a raw-results Excel file is saved in the same folder with the fixed name `results_raw.xlsx`.
 
 ### Logging & Troubleshooting
 
@@ -145,9 +145,6 @@ No environment variables or CLI flags are required.
 **Log overlay shows errors:**
 - Click the log indicator for details.
 - Most issues are resolved by restarting the application or adjusting parameters.
-
-**Output files not where expected:**
-- Per-frame overlays are saved under the selected folder (no `Output` subfolder); the Excel file is written to the same folder as `results_raw.xlsx`.
 
 **Folder/path encoding issues:**
 - Use ASCII-only folder paths. Non-ASCII characters may cause issues when selecting or processing folders.

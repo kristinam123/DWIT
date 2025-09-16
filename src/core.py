@@ -1600,6 +1600,23 @@ class AnalysisCore(QObject):
                     "h_img": getattr(self, "h_img", None),
                 }
 
+                # For free_sedimentation and structured_packing, exclude unused params
+                if self.analysis_mode in [
+                    "free_sedimentation",
+                    "structured_packing",
+                ]:
+                    exclude_keys = {
+                        "rotate_angle",
+                        "baseline",
+                        "fitting_mode",
+                        "polynom",
+                        "baseline_tf",
+                        "manual_baseline",
+                    }
+                    parameters = {
+                        k: v for k, v in parameters.items() if k not in exclude_keys
+                    }
+
                 folder_name = os.path.basename(
                     self.output_path or self._folder_path or ""
                 )

@@ -2527,7 +2527,7 @@ class AnalysisGUI(QWidget):
 
     def _build_save_parameters(self) -> dict:
         """Build parameters dict for saving results from controller attributes."""
-        return {
+        params = {
             "pixel": getattr(self.controller, "pixel", None),
             "fps": getattr(self.controller, "fps", None),
             "threshold": getattr(self.controller, "threshold", None),
@@ -2542,6 +2542,24 @@ class AnalysisGUI(QWidget):
             "w_img": getattr(self.controller, "w_img", None),
             "h_img": getattr(self.controller, "h_img", None),
         }
+
+        # Omit unused parameters in Free Sedimentation and Structured Packing
+        try:
+            mode = getattr(self.controller, "analysis_mode", None)
+            if mode in ("free_sedimentation", "structured_packing"):
+                exclude_keys = {
+                    "rotate_angle",
+                    "baseline",
+                    "fitting_mode",
+                    "polynom",
+                    "baseline_tf",
+                    "manual_baseline",
+                }
+                params = {k: v for k, v in params.items() if k not in exclude_keys}
+        except Exception:
+            pass
+
+        return params
 
     def _find_representative_file_names(self, output_dir: str):
         """Find representative image files in `output_dir`. Returns list or None."""

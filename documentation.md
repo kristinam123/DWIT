@@ -131,6 +131,22 @@ Droplet Wall Interaction Tool (DWIT) is a scientific tool for automating droplet
 
 Note: Per-frame overlays are saved to the selected folder. The Excel file with raw results is saved in the same folder as `results_raw.xlsx`.
 
+Results export now appends parameter settings inline at the bottom of the same sheet. Two extra columns, `Parameter` and `Value`, are added and populated after the data rows, separated by one blank row. Example:
+
+```
+FileName | Time | … | Value               | Parameter
+---------+------+---+---------------------+-----------------------------------------
+img001   | 0.0  | … | Folder              | tests/free_sedimentation (BuAc_d_large)
+img002   | 0.1  | … | FPS [1/s]           | 199
+…        | …    | … | Pixel [px/mm]       | 55
+         |      |   | Threshold           | 13
+```
+
+This keeps parameters visible in the same table for easy filtering and reproducibility. When no parameters are provided, no `Parameter`/`Value` rows are appended.
+
+Mode-specific parameter omission:
+- Free Sedimentation and Structured Packing do not use rotation/baseline fitting parameters; therefore these are omitted from the export: `Rotate Angle`, `Baseline Offset`, `Fitting Mode`, `Polynom`, `Manual Baseline`, and `Manual Baseline Height`.
+
 ---
 
 ## Project Structure

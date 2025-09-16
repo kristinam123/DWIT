@@ -56,7 +56,7 @@ def save_results(
     # Create raw data dictionary
     raw_data = _create_raw_data_dict(times, extracted_data, coordinates, availability)
 
-    # Prepare metadata rows and FileName column values using helpers
+    # Prepare parameter rows (inline) and FileName column values using helpers
     meta_rows = _prepare_meta_rows(folder_name, parameters)
     file_col_values = _prepare_file_col_values(file_names, times)
 
@@ -289,50 +289,14 @@ def _save_dataframe_to_excel(data_dict, output_dir, filename, meta_rows=None):
     """
     excel_path = os.path.join(output_dir, filename)
 
-    # Determine number of rows
-    num_rows = max(len(values) for values in data_dict.values()) if data_dict else 0
+    # Build DataFrame from provided data dictionary
+    df = _build_dataframe_from_dict(data_dict)
 
-    # Convert dictionary to DataFrame
-    df_data = {}
-    for key, values in data_dict.items():
-        # Create a series of the right length, filling with NaN if needed
-        if len(values) < num_rows:
-            padded_values = values + [np.nan] * (num_rows - len(values))
-        else:
-            padded_values = values
-        df_data[key] = padded_values
-
-    # Create DataFrame for the main table
-    df = pd.DataFrame(df_data)
+    # Insert meta rows (if any) into the DataFrame
+    _insert_meta_rows_into_df(df, meta_rows)
 
     try:
-        # Use pandas ExcelWriter (let pandas pick the available engine).
-        # If meta_rows are provided, write them as a two-column block above the table.
-        if meta_rows:
-            try:
-                with pd.ExcelWriter(excel_path) as writer:
-                    meta_df = pd.DataFrame(meta_rows)
-                    meta_df.to_excel(
-                        writer, sheet_name="Sheet1", index=False, header=False
-                    )
-                    df.to_excel(
-                        writer,
-                        sheet_name="Sheet1",
-                        index=False,
-                        startrow=len(meta_rows) + 1,
-                        na_rep="",
-                        float_format="%.6f",
-                    )
-                logger.info(
-                    f"Successfully saved Excel file with metadata: {excel_path}"
-                )
-                return True
-            except Exception as e:
-                logger.warning(
-                    f"Failed to write Excel with metadata using pandas ExcelWriter: {e}"
-                )
-
-        # Try to save DataFrame to Excel without metadata
+        # Save DataFrame to Excel
         df.to_excel(excel_path, index=False, na_rep="", float_format="%.6f")
         logger.info(f"Successfully saved Excel file: {excel_path}")
         return True
@@ -358,24 +322,74 @@ def _save_dataframe_to_excel(data_dict, output_dir, filename, meta_rows=None):
         return False
 
 
+def _build_dataframe_from_dict(data_dict):
+    """Build a pandas DataFrame from a dict of column->list, padding shorter lists.
+
+    Keeps behavior identical to the previous inline implementation.
+    """
+    # Determine number of rows
+    num_rows = max(len(values) for values in data_dict.values()) if data_dict else 0
+
+    # Convert dictionary to padded dict for DataFrame
+    df_data = {}
+    for key, values in data_dict.items():
+        if len(values) < num_rows:
+            padded_values = values + [np.nan] * (num_rows - len(values))
+        else:
+            padded_values = values
+        df_data[key] = padded_values
+
+    return pd.DataFrame(df_data)
+
+
+def _insert_meta_rows_into_df(df: pd.DataFrame, meta_rows: list | None):
+    """Insert meta rows (list of (label, val)) into the first rows of `df`.
+
+    This helper isolates the parameter insertion logic and handles its own
+    error logging so the caller remains simple and testable.
+    """
+    if not meta_rows:
+        return
+
+    try:
+        if "Parameter" not in df.columns:
+            df["Parameter"] = np.nan
+        if "Value" not in df.columns:
+            df["Value"] = np.nan
+
+        # Ensure object dtype so string assignment doesn't trigger dtype warnings
+        try:
+            df["Parameter"] = df["Parameter"].astype("object")
+            df["Value"] = df["Value"].astype("object")
+        except Exception:
+            # Best-effort: if astype fails, continue and rely on pandas coercion
+            pass
+
+        for i, (label, val) in enumerate(meta_rows):
+            if i >= len(df):
+                break
+            df.at[i, "Parameter"] = label
+            df.at[i, "Value"] = val
+    except Exception as e:
+        logger.warning("Failed to write inline parameters into first rows: %s", e)
+
+
 def _prepare_meta_rows(folder_name, parameters):
     """Prepare metadata rows (Folder and parameters) for Excel export.
 
     Returns a list of (key, value) tuples.
     """
     meta_rows: list[tuple[str, str]] = []
-    if folder_name:
-        try:
-            meta_rows.append(("Folder", os.path.basename(folder_name)))
-        except Exception:
-            meta_rows.append(("Folder", str(folder_name)))
+    # Prefer full path for folder entry
+    if folder_name is not None:
+        meta_rows.append(("Folder", str(folder_name)))
     else:
         meta_rows.append(("Folder", ""))
 
     params = parameters or {}
     caption_map = {
-        "pixel": "Pixel [px/mm]",
         "fps": "FPS [1/s]",
+        "pixel": "Pixel [px/mm]",
         "threshold": "Threshold",
         "rotate_angle": "Rotate Angle [Deg]",
         "baseline": "Baseline Offset [px]",
@@ -389,7 +403,33 @@ def _prepare_meta_rows(folder_name, parameters):
         "h_img": "ROI H [px]",
     }
 
+    ordered_keys = [
+        "fps",
+        "pixel",
+        "threshold",
+        "rotate_angle",
+        "baseline",
+        "baseline_tf",
+        "manual_baseline",
+        "fitting_mode",
+        "polynom",
+        "x_img",
+        "y_img",
+        "w_img",
+        "h_img",
+    ]
+    used = set()
+    # First, add known keys in desired order if present
+    for key in ordered_keys:
+        if key in params:
+            val = params[key]
+            caption = caption_map.get(key, str(key))
+            meta_rows.append((caption, "" if val is None else str(val)))
+            used.add(key)
+    # Then, add any remaining keys in original insertion order
     for key, val in params.items():
+        if key in used:
+            continue
         caption = caption_map.get(key, str(key))
         meta_rows.append((caption, "" if val is None else str(val)))
 
