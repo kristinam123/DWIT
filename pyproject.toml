@@ -10,6 +10,7 @@ select = [
  "UP", "SIM",                   # upgrades and simplifications
  "C90",                         # mccabe complexity
  "RUF"]                         # Ruff-specific rules
+ignore = ["SIM105"]
 
 [tool.ruff.format]
 # Enable black-style formatting

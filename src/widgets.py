@@ -1253,7 +1253,43 @@ class AnalysisGUI(QWidget):
         params_layout = QVBoxLayout(params_widget)
         params_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Camera settings
+        # Build sub-sections using helpers to keep complexity low
+        self._add_camera_settings(params_layout)
+        self._add_threshold_settings(params_layout)
+        self._add_adjustments_settings(params_layout)
+        self._add_manual_baseline_settings(params_layout)
+        self._add_fitting_settings(params_layout)
+        self._add_roi_settings(params_layout)
+
+        # Add stretch to push all widgets to the top
+        params_layout.addStretch(1)
+
+        # Initialize ROI spinboxes and UI states
+        self._initialize_roi_spinboxes()
+        self._on_baseline_checkbox_change()
+
+        # Conditionally hide adjustments and manual baseline for certain modes
+        if self.controller.analysis_mode in [
+            "free_sedimentation",
+            "structured_packing",
+        ]:
+            if hasattr(self, "adjustments_group"):
+                self.adjustments_group.hide()
+            if hasattr(self, "separator3"):
+                self.separator3.hide()
+            if hasattr(self, "fitting_group"):
+                self.fitting_group.hide()
+            if hasattr(self, "separator4"):
+                self.separator4.hide()
+            if hasattr(self, "manual_baseline_group"):
+                self.manual_baseline_group.hide()
+            if hasattr(self, "separator5"):
+                self.separator5.hide()
+
+        if parent_widget is None:
+            self.main_layout.addWidget(params_widget)
+
+    def _add_camera_settings(self, params_layout: QVBoxLayout) -> None:
         camera_items = [
             (
                 "FPS",
@@ -1293,7 +1329,7 @@ class AnalysisGUI(QWidget):
         separator1.setLineWidth(1)
         params_layout.addWidget(separator1)
 
-        # Threshold settings
+    def _add_threshold_settings(self, params_layout: QVBoxLayout) -> None:
         min_val = self.controller.threshold
         threshold_items = [
             (
@@ -1322,7 +1358,7 @@ class AnalysisGUI(QWidget):
         self.separator2.setLineWidth(1)
         params_layout.addWidget(self.separator2)
 
-        # Image adjustment settings
+    def _add_adjustments_settings(self, params_layout: QVBoxLayout) -> None:
         adjustments_items = [
             (
                 "Rotate",
@@ -1364,7 +1400,7 @@ class AnalysisGUI(QWidget):
         self.separator3.setLineWidth(1)
         params_layout.addWidget(self.separator3)
 
-        # Manual baseline settings
+    def _add_manual_baseline_settings(self, params_layout: QVBoxLayout) -> None:
         baseline_items = [
             (
                 "Enable",
@@ -1404,7 +1440,7 @@ class AnalysisGUI(QWidget):
         self.separator4.setLineWidth(1)
         params_layout.addWidget(self.separator4)
 
-        # Fitting items
+    def _add_fitting_settings(self, params_layout: QVBoxLayout) -> None:
         fitting_items = [
             (
                 "Mode",
@@ -1440,10 +1476,11 @@ class AnalysisGUI(QWidget):
         self.separator5 = QFrame()
         self.separator5.setFrameShape(QFrame.HLine)
         self.separator5.setFrameShadow(QFrame.Sunken)
-        self.separator5.setLineWidth(2)  # Thicker line
+        self.separator5.setLineWidth(2)
         self.separator5.setMidLineWidth(1)
         params_layout.addWidget(self.separator5)
 
+    def _add_roi_settings(self, params_layout: QVBoxLayout) -> None:
         # ROI settings - without the title
         roi_widget = QWidget()
         roi_layout = QVBoxLayout(roi_widget)
@@ -1453,7 +1490,7 @@ class AnalysisGUI(QWidget):
         roi_button = QPushButton("Select ROI Visually")
         roi_button.setToolTip("Select region of interest visually")
         roi_button.clicked.connect(self.open_roi_selector)
-        roi_layout.addWidget(roi_button)  # Moved ROI button down
+        roi_layout.addWidget(roi_button)
 
         # Width group (Left/Right)
         width_group = QWidget()
@@ -1464,8 +1501,8 @@ class AnalysisGUI(QWidget):
         left_label = QLabel("Left:")
         self.left_roi_spinbox = QSpinBox()
         self.left_roi_spinbox.setSingleStep(20)
-        self.left_roi_spinbox.setSuffix(" px")  # Add px suffix
-        self.left_roi_spinbox.setFixedWidth(120)  # Set fixed width
+        self.left_roi_spinbox.setSuffix(" px")
+        self.left_roi_spinbox.setFixedWidth(120)
         self.left_roi_spinbox.valueChanged.connect(self.controller.set_x_img)
         self.left_roi_spinbox.valueChanged.connect(
             lambda value: self._trigger_preview_update("roi")
@@ -1477,14 +1514,17 @@ class AnalysisGUI(QWidget):
         right_label = QLabel("Right:")
         self.right_roi_spinbox = QSpinBox()
         self.right_roi_spinbox.setSingleStep(20)
-        self.right_roi_spinbox.setSuffix(" px")  # Add px suffix
-        self.right_roi_spinbox.setFixedWidth(120)  # Set fixed width
+        self.right_roi_spinbox.setSuffix(" px")
+        self.right_roi_spinbox.setFixedWidth(120)
         self.right_roi_spinbox.valueChanged.connect(self.controller.set_w_img)
         self.right_roi_spinbox.valueChanged.connect(
             lambda value: self._trigger_preview_update("roi")
         )
         width_layout.addWidget(right_label, 1, 0)
         width_layout.addWidget(self.right_roi_spinbox, 1, 1)
+        # Make spinbox column expand so Left/Right fill available width
+        width_layout.setColumnStretch(0, 0)
+        width_layout.setColumnStretch(1, 1)
 
         # Height group (Top/Bottom)
         height_group = QWidget()
@@ -1495,8 +1535,8 @@ class AnalysisGUI(QWidget):
         top_label = QLabel("Top:")
         self.top_roi_spinbox = QSpinBox()
         self.top_roi_spinbox.setSingleStep(20)
-        self.top_roi_spinbox.setSuffix(" px")  # Add px suffix
-        self.top_roi_spinbox.setFixedWidth(120)  # Set fixed width
+        self.top_roi_spinbox.setSuffix(" px")
+        self.top_roi_spinbox.setFixedWidth(120)
         self.top_roi_spinbox.valueChanged.connect(self.controller.set_y_img)
         self.top_roi_spinbox.valueChanged.connect(
             lambda value: self._trigger_preview_update("roi")
@@ -1508,51 +1548,45 @@ class AnalysisGUI(QWidget):
         bottom_label = QLabel("Bottom:")
         self.bottom_roi_spinbox = QSpinBox()
         self.bottom_roi_spinbox.setSingleStep(20)
-        self.bottom_roi_spinbox.setSuffix(" px")  # Add px suffix
-        self.bottom_roi_spinbox.setFixedWidth(120)  # Set fixed width
+        self.bottom_roi_spinbox.setSuffix(" px")
+        self.bottom_roi_spinbox.setFixedWidth(120)
         self.bottom_roi_spinbox.valueChanged.connect(self.controller.set_h_img)
         self.bottom_roi_spinbox.valueChanged.connect(
             lambda value: self._trigger_preview_update("roi")
         )
         height_layout.addWidget(bottom_label, 1, 0)
         height_layout.addWidget(self.bottom_roi_spinbox, 1, 1)
+        # Make spinbox column expand so Top/Bottom fill available width
+        height_layout.setColumnStretch(0, 0)
+        height_layout.setColumnStretch(1, 1)
+
+        # Reset button and separator
+        self.reset_defaults_btn = QPushButton("Reset to Default")
+        self.reset_defaults_btn.setToolTip(
+            "Reset parameters to mode-specific default values and load the test folder"
+        )
+        self.reset_defaults_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        try:
+            rh = roi_button.sizeHint().height()
+            if rh and rh > 0:
+                self.reset_defaults_btn.setMinimumHeight(rh)
+        except Exception:
+            pass
+        self.reset_defaults_btn.clicked.connect(self._on_reset_defaults_clicked)
+
+        self.separator6 = QFrame()
+        self.separator6.setFrameShape(QFrame.HLine)
+        self.separator6.setFrameShadow(QFrame.Sunken)
+        self.separator6.setLineWidth(2)
+        self.separator6.setMidLineWidth(1)
+        height_layout.addWidget(self.separator6, 2, 0, 1, 2)
+        height_layout.addWidget(self.reset_defaults_btn, 3, 0, 1, 2)
 
         # Add groups to ROI layout
         roi_layout.addWidget(width_group)
         roi_layout.addWidget(height_group)
 
         params_layout.addWidget(roi_widget)
-
-        # Add stretch to push all widgets to the top
-        params_layout.addStretch(1)
-
-        # Initialize ROI spinboxes with values from controller
-        self._initialize_roi_spinboxes()
-
-        # Initialize UI states
-        self._on_baseline_checkbox_change()
-
-        # Conditionally hide adjustments and manual baseline for certain modes
-        if self.controller.analysis_mode in [
-            "free_sedimentation",
-            "structured_packing",
-        ]:
-            if hasattr(self, "adjustments_group"):
-                self.adjustments_group.hide()
-            if hasattr(self, "separator3"):
-                # Make sure to add the created widget to the parent layout
-                self.separator3.hide()
-            if hasattr(self, "fitting_group"):
-                self.fitting_group.hide()
-            if hasattr(self, "separator4"):
-                self.separator4.hide()
-            if hasattr(self, "manual_baseline_group"):
-                self.manual_baseline_group.hide()
-            if hasattr(self, "separator5"):
-                self.separator5.hide()
-
-        if parent_widget is None:
-            self.main_layout.addWidget(params_widget)
 
     def preview(self) -> None:
         """Start preview processing thread.
@@ -2397,6 +2431,150 @@ class AnalysisGUI(QWidget):
         self.controller.set_baseline_tf(is_checked)
 
     #         self.manual_baseline_entry.setEnabled(is_checked)
+
+    def _on_reset_defaults_clicked(self) -> None:
+        """Handle Reset to Default button click: reset controller and update UI."""
+        try:
+            if hasattr(self.controller, "reset_to_defaults"):
+                self.controller.reset_to_defaults()
+            else:
+                logger.warning("Controller has no reset_to_defaults method")
+
+            # Clear current folder list and add the mode-specific test folder
+            try:
+                # This helper clears controller paths and will add the test
+                # folder for the current analysis mode when the list is empty.
+                self.clear_folder_list()
+            except Exception:
+                logger.exception("Failed to clear and reset folder list")
+
+            # Update UI controls to reflect controller values
+            self._apply_controller_values_to_ui()
+
+        except Exception as e:
+            logger.error(f"Error resetting defaults: {e}")
+
+    def _apply_controller_values_to_ui(self) -> None:
+        """Update all parameter controls from controller values.
+
+        Without triggering auto-preview callbacks.
+        """
+        try:
+            controls = self._gather_ui_controls()
+            # Block signals while updating to avoid triggering previews
+            self._block_ui_controls(controls, True)
+            try:
+                self._set_ui_values_from_controller()
+            except Exception as e:
+                logger.error(f"Failed to apply controller values to UI: {e}")
+            finally:
+                # Unblock signals after update
+                self._block_ui_controls(controls, False)
+        except Exception as e:
+            logger.error(f"Error updating UI from controller: {e}")
+
+    def _gather_ui_controls(self) -> list:
+        """Return a list of UI controls to be updated from the controller."""
+        controls: list = []
+        # Basic controls
+        for name in (
+            "FPS_entry",
+            "PIXEL_entry",
+            "threshold_entry",
+            "rotate_angle_entry",
+            "baseline_entry",
+            "Baseline_tf_checkbox",
+            "manual_baseline_entry",
+            "polynom_entry",
+            "polynom_entry_spin",
+        ):
+            if hasattr(self, name):
+                controls.append(getattr(self, name))
+
+        # ROI controls (may or may not exist)
+        controls.extend(
+            [
+                getattr(self, "left_roi_spinbox", None),
+                getattr(self, "right_roi_spinbox", None),
+                getattr(self, "top_roi_spinbox", None),
+                getattr(self, "bottom_roi_spinbox", None),
+            ]
+        )
+        # Filter out None values
+        return [c for c in controls if c is not None]
+
+    def _block_ui_controls(self, controls: list, block: bool) -> None:
+        """Block or unblock signals for a list of controls."""
+        for c in controls:
+            try:
+                c.blockSignals(block)
+            except Exception:
+                # Best-effort: ignore controls that do not support blocking
+                pass
+
+    def _set_ui_values_from_controller(self) -> None:
+        """Set values on UI controls from controller properties."""
+        # Delegate to smaller helpers to reduce McCabe complexity
+        self._apply_basic_mappings()
+        self._apply_checkbox_and_combobox()
+        self._apply_roi_mappings()
+
+    def _apply_basic_mappings(self) -> None:
+        """Apply simple numeric mappings from controller to UI controls."""
+        mappings = [
+            ("FPS_entry", "fps", int, "setValue"),
+            ("PIXEL_entry", "pixel", float, "setValue"),
+            ("threshold_entry", "threshold", int, "setValue"),
+            ("rotate_angle_entry", "rotate_angle", float, "setValue"),
+            ("baseline_entry", "baseline", int, "setValue"),
+            ("manual_baseline_entry", "manual_baseline", int, "setValue"),
+            ("polynom_entry_spin", "polynom", int, "setValue"),
+        ]
+
+        for ui_name, ctrl_name, caster, method in mappings:
+            ui_ctrl = getattr(self, ui_name, None)
+            if ui_ctrl is None or not hasattr(self.controller, ctrl_name):
+                continue
+            try:
+                value = getattr(self.controller, ctrl_name)
+                getattr(ui_ctrl, method)(caster(value))
+            except Exception:
+                continue
+
+    def _apply_checkbox_and_combobox(self) -> None:
+        """Apply checkbox and combobox values from controller."""
+        if hasattr(self, "Baseline_tf_checkbox") and hasattr(
+            self.controller, "baseline_tf"
+        ):
+            try:
+                self.Baseline_tf_checkbox.setChecked(bool(self.controller.baseline_tf))
+            except Exception:
+                pass
+
+        if hasattr(self, "polynom_entry") and isinstance(self.polynom_entry, QComboBox):
+            try:
+                self.polynom_entry.setCurrentText(
+                    str(getattr(self.controller, "fitting_mode", ""))
+                )
+            except Exception:
+                pass
+
+    def _apply_roi_mappings(self) -> None:
+        """Apply ROI spinbox values from controller."""
+        roi_mappings = [
+            ("left_roi_spinbox", "x_img"),
+            ("right_roi_spinbox", "w_img"),
+            ("top_roi_spinbox", "y_img"),
+            ("bottom_roi_spinbox", "h_img"),
+        ]
+        for ui_name, ctrl_name in roi_mappings:
+            ui_ctrl = getattr(self, ui_name, None)
+            if ui_ctrl is None or not hasattr(self.controller, ctrl_name):
+                continue
+            try:
+                ui_ctrl.setValue(int(getattr(self.controller, ctrl_name)))
+            except Exception:
+                pass
 
     def display_image_in_canvas(self, img: Any, canvas: QLabel) -> None:
         """Display an OpenCV image in a Qt label properly scaled to fit."""
@@ -3255,8 +3433,11 @@ class AnalysisGUI(QWidget):
             if not folder or folder in self.controller.folder_paths:
                 continue
             self.controller.add_folder_path(folder)
-            item = QListWidgetItem(folder)
-            item.setData(Qt.UserRole, folder)
+            display_path = os.path.abspath(folder)
+            item = QListWidgetItem(display_path)
+            # Store absolute path in the item data so actions receive a usable path
+            item.setData(Qt.UserRole, display_path)
+            item.setToolTip(display_path)
             item.setSizeHint(QSize(300, 32))
             self.folder_list.addItem(item)
 
@@ -3290,6 +3471,24 @@ class AnalysisGUI(QWidget):
             row = self.folder_list.row(item)
             self.folder_list.takeItem(row)
 
+        # If the list became empty after removal, add the mode-specific test
+        # folder so the user always has at least the example dataset available.
+        try:
+            if self.folder_list.count() == 0:
+                mode = getattr(self.controller, "analysis_mode", "")
+                test_map = {
+                    "free_sedimentation": "tests/free_sedimentation (BuAc_d_large)",
+                    "channel": "tests/channel (BuAc_d_large)",
+                    "structured_packing": "tests/structured_packing (BuAc_d_large)",
+                    "contact_angle": "tests/contact_wall (BuAc_d_large)",
+                }
+                rel = test_map.get(mode, "tests/contact_wall (BuAc_d_large)")
+                default_test = os.path.abspath(rel)
+                if os.path.isdir(default_test):
+                    self._add_folders_to_list([default_test])
+        except Exception:
+            logger.exception("Failed to add default test folder after removals")
+
     def clear_folder_list(self) -> None:
         """Clear all folders from the batch list."""
         logger.info("Clearing all folders from batch list")
@@ -3320,6 +3519,25 @@ class AnalysisGUI(QWidget):
             self.total_frames = 0
             # Ensure main folder highlight is updated
             self._update_main_folder_highlight()
+        except Exception:
+            pass
+
+        # If the list is empty after clearing, add the default test folder
+        try:
+            if hasattr(self, "folder_list") and self.folder_list.count() == 0:
+                mode = getattr(self.controller, "analysis_mode", "")
+                test_map = {
+                    "free_sedimentation": "tests/free_sedimentation (BuAc_d_large)",
+                    "channel": "tests/channel (BuAc_d_large)",
+                    "structured_packing": "tests/structured_packing (BuAc_d_large)",
+                    # fallback/default for contact_angle and others
+                    "contact_angle": "tests/contact_wall (BuAc_d_large)",
+                }
+                rel = test_map.get(mode, "tests/contact_wall (BuAc_d_large)")
+                default_test = os.path.abspath(rel)
+                if os.path.isdir(default_test):
+                    # Use existing helper to add folder and update UI
+                    self._add_folders_to_list([default_test])
         except Exception:
             pass
 
@@ -3544,10 +3762,13 @@ class AnalysisGUI(QWidget):
         """Update the folder list widget when paths in controller change."""
         self.folder_list.clear()
         for path in folder_paths:
-            # Create an item with the shortened path for display
-            item = QListWidgetItem(path)
-            # Store the full path as data
-            item.setData(Qt.UserRole, path)
+            # Display the absolute path and store the original full path as data
+            display_path = os.path.abspath(path)
+            item = QListWidgetItem(display_path)
+            # Store the absolute path as data so actions like 'Open in Explorer'
+            # get a valid filesystem path regardless of how it was added.
+            item.setData(Qt.UserRole, display_path)
+            item.setToolTip(display_path)
             # Set size hint for proper display of progress bars
             item.setSizeHint(QSize(300, 32))  # Fixed size for progress bars
             self.folder_list.addItem(item)
@@ -3664,12 +3885,29 @@ class AnalysisGUI(QWidget):
 
             menu.addSeparator()
 
-            # Add 'Open in Explorer' action for convenience
-            open_action = menu.addAction("Open in Explorer")
+            # Add 'Open Folder' action for convenience (renamed from
+            # 'Open in Explorer')
+            open_action = menu.addAction("Open Folder")
             open_action.setToolTip(full_path)
             open_action.triggered.connect(
                 lambda: self.open_folder_in_explorer(full_path)
             )
+
+            # If this folder has results (results_raw.xlsx) add an action to
+            # open the results directly. We prefer checking for the results
+            # file existence to decide visibility.
+            try:
+                results_file = os.path.join(full_path, "results_raw.xlsx")
+                has_results = os.path.exists(results_file)
+            except Exception:
+                has_results = False
+
+            if has_results:
+                open_results_action = menu.addAction("Open Results")
+                open_results_action.setToolTip(results_file)
+                open_results_action.triggered.connect(
+                    lambda: self.open_results_file(full_path)
+                )
 
         menu.addAction("Remove Selected", self.remove_selected_folders)
         menu.addAction("Clear All", self.clear_folder_list)
@@ -3782,6 +4020,38 @@ class AnalysisGUI(QWidget):
 
         except Exception as e:
             logger.error(f"Failed to open folder in explorer: {e}")
+
+    def open_results_file(self, folder_path: str) -> None:
+        """Open the results file (`results_raw.xlsx`) in the system default app."""
+        try:
+            if not folder_path or not os.path.isdir(folder_path):
+                logger.error("Cannot open results, invalid folder: %s", folder_path)
+                return
+
+            results_file = os.path.join(folder_path, "results_raw.xlsx")
+            if not os.path.exists(results_file):
+                logger.warning("Results file does not exist: %s", results_file)
+                return
+
+            # Windows
+            if os.name == "nt":
+                os.startfile(results_file)
+                return
+
+            # macOS
+            if sys.platform == "darwin":
+                import subprocess
+
+                subprocess.run(["open", results_file])
+                return
+
+            # Linux and others
+            import subprocess
+
+            subprocess.run(["xdg-open", results_file])
+
+        except Exception as e:
+            logger.error(f"Failed to open results file: {e}")
 
     def _update_roi_ranges_from_image(self):
         """Update ROI spinbox ranges based on the rotated image dimensions."""

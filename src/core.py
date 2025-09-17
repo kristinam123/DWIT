@@ -420,14 +420,27 @@ class AnalysisCore(QObject):
             self._h_img = self.settings.value("hImg", 800, type=int)
             self._x_img = self.settings.value("xImg", 0, type=int)
             self._w_img = self.settings.value("wImg", 2900, type=int)
-            self._folder_path = self.settings.value(
-                "folderPath", "tests/free_sedimentation (BuAc_d_large)"
+            # Use absolute paths for default test folders so the UI shows
+            # the full path instead of a shortened/relative one.
+            default = os.path.abspath(
+                self.settings.value(
+                    "folderPath", "tests/free_sedimentation (BuAc_d_large)"
+                )
             )
+            self._folder_path = self.settings.value("folderPath", default)
+            default_list = [
+                os.path.abspath(p)
+                for p in self.settings.value(
+                    "folderPaths",
+                    ["tests/free_sedimentation (BuAc_d_large)"],
+                    type=list,
+                )
+            ]
             self._folder_paths = self.settings.value(
-                "folderPaths", ["tests/free_sedimentation (BuAc_d_large)"], type=list
+                "folderPaths", default_list, type=list
             )
             self._main_folder_path = self.settings.value(
-                "mainFolderPath", "tests/free_sedimentation (BuAc_d_large)", type=str
+                "mainFolderPath", default, type=str
             )
             self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
             self._threshold = self.settings.value("threshold", 20, type=int)
@@ -438,14 +451,21 @@ class AnalysisCore(QObject):
             self._h_img = self.settings.value("hImg", 1200, type=int)
             self._x_img = self.settings.value("xImg", 0, type=int)
             self._w_img = self.settings.value("wImg", 2500, type=int)
-            self._folder_path = self.settings.value(
-                "folderPath", "tests/channel (BuAc_d_large)"
+            default = os.path.abspath(
+                self.settings.value("folderPath", "tests/channel (BuAc_d_large)")
             )
+            self._folder_path = self.settings.value("folderPath", default)
+            default_list = [
+                os.path.abspath(p)
+                for p in self.settings.value(
+                    "folderPaths", ["tests/channel (BuAc_d_large)"], type=list
+                )
+            ]
             self._folder_paths = self.settings.value(
-                "folderPaths", ["tests/channel (BuAc_d_large)"], type=list
+                "folderPaths", default_list, type=list
             )
             self._main_folder_path = self.settings.value(
-                "mainFolderPath", "tests/channel (BuAc_d_large)", type=str
+                "mainFolderPath", default, type=str
             )
             self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
             self._threshold = self.settings.value("threshold", 50, type=int)
@@ -456,14 +476,25 @@ class AnalysisCore(QObject):
             self._h_img = self.settings.value("hImg", 1300, type=int)
             self._x_img = self.settings.value("xImg", 0, type=int)
             self._w_img = self.settings.value("wImg", 2900, type=int)
-            self._folder_path = self.settings.value(
-                "folderPath", "tests/structured_packing (BuAc_d_large)"
+            default = os.path.abspath(
+                self.settings.value(
+                    "folderPath", "tests/structured_packing (BuAc_d_large)"
+                )
             )
+            self._folder_path = self.settings.value("folderPath", default)
+            default_list = [
+                os.path.abspath(p)
+                for p in self.settings.value(
+                    "folderPaths",
+                    ["tests/structured_packing (BuAc_d_large)"],
+                    type=list,
+                )
+            ]
             self._folder_paths = self.settings.value(
-                "folderPaths", ["tests/structured_packing (BuAc_d_large)"], type=list
+                "folderPaths", default_list, type=list
             )
             self._main_folder_path = self.settings.value(
-                "mainFolderPath", "tests/structured_packing (BuAc_d_large)", type=str
+                "mainFolderPath", default, type=str
             )
             self._baseline_tf = self.settings.value("baselineTF", True, type=bool)
             self._threshold = self.settings.value("threshold", 20, type=int)
@@ -474,14 +505,21 @@ class AnalysisCore(QObject):
             self._h_img = self.settings.value("hImg", 1700, type=int)
             self._x_img = self.settings.value("xImg", 300, type=int)
             self._w_img = self.settings.value("wImg", 2500, type=int)
-            self._folder_path = self.settings.value(
-                "folderPath", "tests/contact_wall (BuAc_d_large)"
+            default = os.path.abspath(
+                self.settings.value("folderPath", "tests/contact_wall (BuAc_d_large)")
             )
+            self._folder_path = self.settings.value("folderPath", default)
+            default_list = [
+                os.path.abspath(p)
+                for p in self.settings.value(
+                    "folderPaths", ["tests/contact_wall (BuAc_d_large)"], type=list
+                )
+            ]
             self._folder_paths = self.settings.value(
-                "folderPaths", ["tests/contact_wall (BuAc_d_large)"], type=list
+                "folderPaths", default_list, type=list
             )
             self._main_folder_path = self.settings.value(
-                "mainFolderPath", "tests/contact_wall (BuAc_d_large)", type=str
+                "mainFolderPath", default, type=str
             )
             self._baseline_tf = self.settings.value("baselineTF", False, type=bool)
             self._threshold = self.settings.value("threshold", 50, type=int)
@@ -561,6 +599,76 @@ class AnalysisCore(QObject):
             self.settings.sync()
         except Exception as e:
             logger.error(f"Failed to persist cleaned folder paths: {e}")
+
+    def reset_to_defaults(self) -> None:
+        """Reset selected parameters to their mode-specific defaults.
+
+        This method only resets a subset of parameters depending on the
+        analysis mode as requested by the UI behavior. It uses the public
+        setters so that settings are persisted and change signals are emitted
+        to update any bound UI.
+        """
+        logger.info(f"Resetting parameters to defaults for mode: {self.analysis_mode}")
+        try:
+            # Common defaults
+            self.set_pixel(55.00)
+            self.set_fps(100)
+
+            # Mode-specific defaults
+            if self.analysis_mode == "free_sedimentation":
+                # Reset FPS, pixel, threshold, ROI
+                self.set_threshold(20)
+                self.set_y_img(300)
+                self.set_h_img(800)
+                self.set_x_img(0)
+                self.set_w_img(2900)
+
+            elif self.analysis_mode == "channel":
+                # Reset many parameters for channel
+                self.set_threshold(50)
+                self.set_rotate_angle(45.60)
+                self.set_baseline(0)
+                self.set_baseline_tf(False)
+                self.set_manual_baseline(0)
+                self.set_fitting_mode("Arc")
+                self.set_polynom(3)
+                self.set_y_img(900)
+                self.set_h_img(1200)
+                self.set_x_img(0)
+                self.set_w_img(2500)
+
+            elif self.analysis_mode == "structured_packing":
+                # Reset FPS, pixel, threshold, ROI for structured packing
+                self.set_threshold(20)
+                self.set_y_img(900)
+                self.set_h_img(1300)
+                self.set_x_img(0)
+                self.set_w_img(2900)
+
+            else:
+                # Default (contact_angle and other modes)
+                self.set_threshold(50)
+                self.set_rotate_angle(42.60)
+                self.set_baseline(0)
+                self.set_baseline_tf(False)
+                self.set_manual_baseline(0)
+                self.set_fitting_mode("Arc")
+                self.set_polynom(3)
+                self.set_y_img(1300)
+                self.set_h_img(1700)
+                self.set_x_img(300)
+                self.set_w_img(2500)
+
+            # Ensure settings are synced to persistent store
+            try:
+                self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
+                self.settings.sync()
+                self.settings.endGroup()
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error(f"Failed to reset defaults: {e}")
 
     # Property getters and setters
     def get_folder_path(self) -> str:

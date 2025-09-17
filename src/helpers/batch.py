@@ -28,11 +28,29 @@ class FolderItemDelegate(QStyledItemDelegate):
 
     def set_results_presence(self, row, has_results: bool):
         """Set whether a folder (row) has results file present."""
+        # Only update the presence flag here. Do NOT forcefully override
+        # the per-row progress value — progress should reflect live
+        # processing and not be reset/overridden by background scans.
         self.results_presence[row] = bool(has_results)
+        # Ensure an entry exists in progress_data to avoid KeyError on paint,
+        # but do not change existing progress values when a scan reports
+        # presence/absence. This preserves in-progress UI state.
+        try:
+            if row not in self.progress_data:
+                # Default to 0 only if we don't already have progress info
+                self.progress_data[row] = 0
+        except Exception:
+            # Defensive fallback
+            self.progress_data = {row: 0}
 
     def clear_results_presence(self):
         """Clear all results presence data."""
         self.results_presence = {}
+        # Also clear any per-row progress data to avoid stale progress bars
+        try:
+            self.progress_data = {}
+        except Exception:
+            self.progress_data = {}
 
     def set_progress(self, row, progress_value):
         """Set progress value for a row (0-100, or -1 for error)."""
@@ -94,12 +112,8 @@ class FolderItemDelegate(QStyledItemDelegate):
                     y + int(h * 0.3),
                 )
 
-            # Draw progress bar
+            # Draw progress bar (progress is independent from the done/checkmark)
             progress_value = self.progress_data.get(row, 0)
-
-            # If folder has results, show 100% progress
-            if has_results:
-                progress_value = 100
 
             # Only draw progress bar if we have some progress or completed folder
             if progress_value > 0 or has_results:
