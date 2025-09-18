@@ -4,7 +4,7 @@ This module defines AnalysisThread, which handles image analysis in a background
 emitting progress, finished, and error signals for UI updates.
 """
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QMutex, QThread, QWaitCondition, Signal
 
 from src.utilities.logging_manager import get_logger
 
@@ -89,6 +89,9 @@ class AnalysisThread(QThread):
         # Add state variables for pause and stop functionality
         self.is_paused = False
         self.should_stop = False
+        # Add Qt synchronization primitives for proper pause/resume
+        self._pause_mutex = QMutex()
+        self._pause_condition = QWaitCondition()
 
     # In the run method of AnalysisThread
     def run(self):
@@ -143,12 +146,17 @@ class AnalysisThread(QThread):
     def pause(self):
         """Pause processing after the current image is complete."""
         logger.info("AnalysisThread pause requested")
+        self._pause_mutex.lock()
         self.is_paused = True
+        self._pause_mutex.unlock()
 
     def resume(self):
         """Resume processing from where it was paused."""
         logger.info("AnalysisThread resume requested")
+        self._pause_mutex.lock()
         self.is_paused = False
+        self._pause_condition.wakeAll()  # Wake up any waiting threads
+        self._pause_mutex.unlock()
 
     def stop(self):
         """Stop processing after the current image is complete."""
@@ -188,9 +196,11 @@ class AnalysisThread(QThread):
             result_images,
         )
 
-        # Handle pause - sleep while paused
+        # Handle pause - wait for resume signal
+        self._pause_mutex.lock()
         while self.is_paused and not self.should_stop:
-            self.msleep(100)  # Sleep to avoid high CPU usage
+            self._pause_condition.wait(self._pause_mutex)  # Proper Qt wait
+        self._pause_mutex.unlock()
 
         # Return False if should stop, which will abort the processing
         return not self.should_stop

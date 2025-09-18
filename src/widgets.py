@@ -56,14 +56,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.helpers.baseline import find_single_baseline
 from src.helpers.batch import BatchProcessingWorker, FolderItemDelegate
 from src.helpers.preview import show_preview
 from src.helpers.save_results import save_results
 from src.helpers.velocity import calculate_velocities
 from src.threads import AnalysisThread
-from src.utilities.image import create_background_image, crop_image, rotate_image
+from src.utilities.image import rotate_image
 from src.utilities.logging_manager import get_logger
+from src.utilities.preview_optimization import get_optimized_preview_generator
 from src.utilities.roi import ROISelector
 
 # Setup logger for this module
@@ -465,6 +465,10 @@ class AnalysisGUI(QWidget):
             # Keep track of the last changed parameter type
             self.last_changed_param = None
 
+            # Initialize optimized preview generator
+            self.optimized_preview = get_optimized_preview_generator()
+            self.optimized_preview.preview_ready.connect(self._handle_optimized_preview)
+
             # Create UI
             self.create_widgets()
 
@@ -590,6 +594,15 @@ class AnalysisGUI(QWidget):
                     lambda: setattr(self, "should_show_context_preview", False)
                 )
             self.context_preview_timer.start(2000)  # 2 seconds delay
+
+    def _handle_optimized_preview(self, image, preview_type: str):
+        """Handle optimized preview results."""
+        try:
+            if image is not None:
+                show_preview(image, self)
+                logger.debug(f"Displayed optimized {preview_type} preview")
+        except Exception as e:
+            logger.error(f"Error displaying optimized {preview_type} preview: {e}")
 
     def _show_parameter_specific_image(self, result_images: dict) -> bool:
         """Show image based on the last changed parameter type."""
@@ -1596,7 +1609,6 @@ class AnalysisGUI(QWidget):
         logger.info("Starting preview processing")
         # Check if already processing
         if self.is_processing:
-            logger.warning("Processing already in progress, ignoring preview request")
             return
 
         # Set preview mode flag to prevent progress bar updates
@@ -1836,105 +1848,57 @@ class AnalysisGUI(QWidget):
         self._trigger_preview_update("roi")
 
     def _show_roi_preview(self):
-        """Show the ROI preview dialog with current ROI settings."""
-        try:
-            # Check if we have a valid folder path
-            if not self.controller.folder_path or not os.path.isdir(
-                self.controller.folder_path
-            ):
-                return
+        """Show the ROI preview dialog with current ROI settings (optimized)."""
+        if not self.controller.folder_path or not os.path.isdir(
+            self.controller.folder_path
+        ):
+            return
 
-            # Find all images in the folder
-            image_extensions = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff"]
-            image_files = []
-            for ext in image_extensions:
-                image_files.extend(
-                    glob.glob(os.path.join(self.controller.folder_path, ext))
-                )
-
-            if not image_files:
-                return
-
-            # Sort files and get the middle one (same as ROI selector)
-            image_files.sort()
-            middle_idx = len(image_files) // 2
-            middle_image = image_files[middle_idx]
-
-            # Load the image as numpy array
-            image = cv2.imread(middle_image)
-            if image is None:
-                return
-
-            # Apply rotation if specified in controller
-            rotation_angle = getattr(self.controller, "rotate_angle", 0.0)
-            image = rotate_image(image, rotation_angle)
-            if image is None:
-                logger.error(f"Failed to rotate image for ROI preview: {middle_image}")
-                return
-
-            # Draw ROI rectangle on the rotated image
-            roi_left = self.controller.x_img
-            roi_top = self.controller.y_img
-            roi_right = self.controller.w_img
-            roi_bottom = self.controller.h_img
-
-            # Make a copy of the image to draw on
-            image_with_roi = image.copy()
-
-            # Draw ROI rectangle in red
-            cv2.rectangle(
-                image_with_roi,
-                (roi_left, roi_top),
-                (roi_right, roi_bottom),
-                (0, 0, 255),  # Red color in BGR format
-                2,  # Line thickness
+        # Use optimized preview generation with debouncing
+        def generate_roi_preview():
+            roi_params = (
+                self.controller.x_img,
+                self.controller.y_img,
+                self.controller.w_img,
+                self.controller.h_img,
+            )
+            return self.optimized_preview.generate_roi_preview(
+                self.controller.folder_path,
+                roi_params,
+                self.controller.rotate_angle,
+                self.controller.analysis_mode,
             )
 
-            # Show the ROI preview with the rotated image and ROI overlay
-            show_preview(image_with_roi, self)
-
-        except Exception as e:
-            logger.error(f"Error showing ROI preview: {e}")
-            pass
+        self.optimized_preview.debounced_preview_update(
+            "roi", generate_roi_preview, delay_ms=25
+        )
 
     def _show_threshold_preview(self):
-        """Show threshold preview with background subtraction like in normal process."""
-        logger.debug('Showing threshold preview using "_show_threshold_preview"')
-        try:
-            # Get the processed image (rotated and cropped)
-            image = self._get_processed_image()
-            if image is None:
-                return
+        """Show threshold preview with background subtraction (optimized)."""
+        if not self.controller.folder_path or not os.path.isdir(
+            self.controller.folder_path
+        ):
+            return
 
-            # Create background image like in normal process
-            background = self._create_background_for_preview()
-            if background is None:
-                return
-
-            # Ensure both images have the same shape and channels
-            if image.shape != background.shape:
-                # Resize background to match image
-                background = cv2.resize(background, (image.shape[1], image.shape[0]))
-                # Match channels if needed
-                if image.shape[2] != background.shape[2]:
-                    if background.shape[2] == 1 and image.shape[2] == 3:
-                        background = cv2.cvtColor(background, cv2.COLOR_GRAY2BGR)
-                    elif background.shape[2] == 3 and image.shape[2] == 1:
-                        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
-            # Apply background subtraction and threshold like in normal process
-            diff = cv2.absdiff(image, background)
-            gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-            gray = cv2.GaussianBlur(gray, (5, 5), 0)
-            _, thresh_image = cv2.threshold(
-                gray, self.controller.threshold, 255, cv2.THRESH_BINARY
+        # Use optimized preview generation with debouncing
+        def generate_threshold_preview():
+            crop_params = (
+                self.controller.x_img,
+                self.controller.w_img,
+                self.controller.y_img,
+                self.controller.h_img,
+            )
+            return self.optimized_preview.generate_threshold_preview(
+                self.controller.folder_path,
+                self.controller.threshold,
+                self.controller.rotate_angle,
+                crop_params,
+                self.controller.analysis_mode,
             )
 
-            # Show the threshold preview
-            show_preview(thresh_image, self)
-
-        except Exception as e:
-            logger.error(f"Error showing threshold preview: {e}")
+        self.optimized_preview.debounced_preview_update(
+            "threshold", generate_threshold_preview, delay_ms=25
+        )
 
     def _show_rotation_preview(self):
         """Show rotation preview with orientation lines."""
@@ -1969,76 +1933,38 @@ class AnalysisGUI(QWidget):
             pass
 
     def _show_baseline_preview(self):
-        """Show baseline preview with rotated, cropped image and proper baseline."""
-        try:
-            logger.info(
-                f"Showing baseline preview, baseline_tf={self.controller.baseline_tf}, "
-                f"baseline_offset={self.controller.baseline}, "
-                f"manual_baseline={self.controller.manual_baseline}"
+        """Show baseline preview with rotated, cropped image and baseline.
+
+        Uses optimized preview generation.
+        """
+        if not self.controller.folder_path or not os.path.isdir(
+            self.controller.folder_path
+        ):
+            return
+
+        # Use optimized preview generation with debouncing
+        def generate_baseline_preview():
+            crop_params = (
+                self.controller.x_img,
+                self.controller.w_img,
+                self.controller.y_img,
+                self.controller.h_img,
+            )
+            manual_baseline = (
+                self.controller.manual_baseline if self.controller.baseline_tf else None
+            )
+            return self.optimized_preview.generate_baseline_preview(
+                self.controller.folder_path,
+                self.controller.baseline,
+                manual_baseline,
+                self.controller.rotate_angle,
+                crop_params,
+                self.controller.analysis_mode,
             )
 
-            # Get the processed image (rotated and cropped)
-            image = self._get_processed_image()
-            if image is None:
-                logger.warning("Could not get processed image for baseline preview")
-                return
-
-            # Get image dimensions
-            img_h, img_w = image.shape[:2]
-
-            # Calculate baseline like in normal process
-            if self.controller.baseline_tf:
-                # Manual baseline mode - use manual_baseline directly
-                baseline_y = img_h - self.controller.manual_baseline
-                logger.info(
-                    f"Manual baseline at y={baseline_y}, "
-                    f"manual_offset={self.controller.manual_baseline}"
-                )
-            else:
-                # Automatic baseline detection with offset
-                baseline_result = find_single_baseline(
-                    image,
-                    baseline_offset=self.controller.baseline,
-                    baseline_tf=False,
-                    manual_offset=0,
-                )
-
-                if isinstance(baseline_result, tuple):
-                    # Returns (y1_left, y1_right)
-                    baseline_y = baseline_result[0]
-                else:
-                    # Returns single value
-                    baseline_y = baseline_result
-
-                if baseline_y is not None:
-                    # Apply the baseline offset
-                    baseline_y = baseline_y + self.controller.baseline
-                    logger.info(
-                        f"Automatic baseline at y={baseline_y}, "
-                        f"offset={self.controller.baseline}"
-                    )
-
-            # Draw baseline on image
-            baseline_image = image.copy()
-            if len(baseline_image.shape) == 2:  # Convert grayscale to color
-                baseline_image = cv2.cvtColor(baseline_image, cv2.COLOR_GRAY2BGR)
-
-            # Draw baseline in red if we have a valid baseline
-            if baseline_y is not None:
-                cv2.line(
-                    baseline_image,
-                    (0, int(baseline_y)),
-                    (img_w, int(baseline_y)),
-                    (0, 0, 255),
-                    2,
-                )
-
-            # Show the baseline preview
-            show_preview(baseline_image, self)
-
-        except Exception as e:
-            logger.error(f"Error showing baseline preview: {e}")
-            pass
+        self.optimized_preview.debounced_preview_update(
+            "baseline", generate_baseline_preview, delay_ms=25
+        )
 
     def _get_original_image(self):
         """Get the original middle image from the folder."""
@@ -2070,74 +1996,6 @@ class AnalysisGUI(QWidget):
 
         except Exception as e:
             logger.error(f"Error loading original image: {e}")
-            return None
-
-    def _get_processed_image(self):
-        """Get the processed image (rotated and cropped)."""
-        try:
-            # Get original image
-            image = self._get_original_image()
-            if image is None:
-                return None
-
-            # Apply rotation
-            rotation_angle = getattr(self.controller, "rotate_angle", 0.0)
-            image = rotate_image(image, rotation_angle)
-
-            # Apply cropping
-            crop_params = (
-                self.controller.x_img,
-                self.controller.w_img,
-                self.controller.y_img,
-                self.controller.h_img,
-            )
-            image = crop_image(image, crop_params)
-
-            return image
-
-        except Exception as e:
-            logger.error(f"Error processing image: {e}")
-            return None
-
-    def _create_background_for_preview(self):
-        """Create background image for preview using same method as normal process."""
-        try:
-            if not self.controller.folder_path or not os.path.isdir(
-                self.controller.folder_path
-            ):
-                return None
-
-            # Find all images in the folder
-            image_extensions = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff"]
-            image_files = []
-            for ext in image_extensions:
-                image_files.extend(
-                    glob.glob(os.path.join(self.controller.folder_path, ext))
-                )
-
-            if not image_files:
-                return None
-
-            # Sort files
-            image_files.sort()
-
-            # Create background image using the same method as normal process
-            background = create_background_image(
-                image_files,
-                use_first_as_background=False,  # Use average background
-                rotate_angle=self.controller.rotate_angle,
-                crop_params=(
-                    self.controller.x_img,
-                    self.controller.w_img,
-                    self.controller.y_img,
-                    self.controller.h_img,
-                ),
-            )
-
-            return background
-
-        except Exception as e:
-            logger.error(f"Error creating background for preview: {e}")
             return None
 
     def _create_preview_area(self, parent_widget=None) -> None:
@@ -3442,19 +3300,8 @@ class AnalysisGUI(QWidget):
             self.folder_list.addItem(item)
 
             # Immediately check this folder for results (fast feedback)
-            try:
-                idx = self.folder_list.count() - 1
-                has = os.path.exists(os.path.join(folder, "results_raw.xlsx"))
-                self.folder_delegate.set_results_presence(idx, has)
-                self.folder_list.update(self.folder_list.model().index(idx, 0))
-                if self._results_scanner_worker is not None:
-                    paths = [
-                        self.folder_list.item(i).data(Qt.UserRole)
-                        for i in range(self.folder_list.count())
-                    ]
-                    self._results_scanner_worker.set_folder_paths(paths)
-            except Exception:
-                pass
+            # Defer checking this folder for results to avoid blocking
+            QTimer.singleShot(0, lambda: self._scan_single_folder_results(display_path))
 
     def remove_selected_folders(self) -> None:
         """Remove selected folders from the batch list."""
@@ -3776,12 +3623,13 @@ class AnalysisGUI(QWidget):
         # Reset progress data when updating the list
         self.folder_delegate.progress_data = {}
 
-        # Reset results presence and perform an immediate scan
+        # Reset results presence and defer scan to avoid blocking startup
         try:
             self.folder_delegate.clear_results_presence()
-            self._immediate_scan_folder_results()
+            # Defer the immediate scan to avoid blocking GUI creation
+            QTimer.singleShot(100, self._immediate_scan_folder_results)
         except Exception:
-            logger.exception("Error scanning folder results during update")
+            logger.exception("Error setting up folder results scanning during update")
 
         # Ensure main folder is highlighted
         self._update_main_folder_highlight()
@@ -3994,6 +3842,8 @@ class AnalysisGUI(QWidget):
 
     def open_folder_in_explorer(self, folder_path: str) -> None:
         """Open the given folder in the system file explorer."""
+        import subprocess
+
         try:
             if not folder_path or not os.path.isdir(folder_path):
                 logger.error(
@@ -4003,26 +3853,24 @@ class AnalysisGUI(QWidget):
 
             # Windows
             if os.name == "nt":
-                os.startfile(folder_path)
+                subprocess.Popen(["explorer", folder_path], shell=False)
                 return
 
             # macOS
             if sys.platform == "darwin":
-                import subprocess
-
-                subprocess.run(["open", folder_path])
+                subprocess.Popen(["open", folder_path])
                 return
 
             # Linux and others
-            import subprocess
-
-            subprocess.run(["xdg-open", folder_path])
+            subprocess.Popen(["xdg-open", folder_path])
 
         except Exception as e:
             logger.error(f"Failed to open folder in explorer: {e}")
 
     def open_results_file(self, folder_path: str) -> None:
         """Open the results file (`results_raw.xlsx`) in the system default app."""
+        import subprocess
+
         try:
             if not folder_path or not os.path.isdir(folder_path):
                 logger.error("Cannot open results, invalid folder: %s", folder_path)
@@ -4035,20 +3883,16 @@ class AnalysisGUI(QWidget):
 
             # Windows
             if os.name == "nt":
-                os.startfile(results_file)
+                subprocess.Popen(["cmd", "/c", "start", "", results_file], shell=False)
                 return
 
             # macOS
             if sys.platform == "darwin":
-                import subprocess
-
-                subprocess.run(["open", results_file])
+                subprocess.Popen(["open", results_file])
                 return
 
             # Linux and others
-            import subprocess
-
-            subprocess.run(["xdg-open", results_file])
+            subprocess.Popen(["xdg-open", results_file])
 
         except Exception as e:
             logger.error(f"Failed to open results file: {e}")
@@ -4191,6 +4035,41 @@ class AnalysisGUI(QWidget):
         except Exception as e:
             logger.error(f"Failed to scan folder results immediately: {e}")
 
+    def _scan_single_folder_results(self, folder_path: str):
+        """Scan a single folder for results (for deferred scanning)."""
+        try:
+            # Find the index of this folder in the list
+            folder_index = None
+            for i in range(self.folder_list.count()):
+                item = self.folder_list.item(i)
+                if item and item.data(Qt.UserRole) == folder_path:
+                    folder_index = i
+                    break
+
+            if folder_index is not None:
+                results_file = os.path.join(folder_path, "results_raw.xlsx")
+                has_results = (
+                    os.path.exists(folder_path)
+                    and os.path.isdir(folder_path)
+                    and os.path.exists(results_file)
+                )
+                self.folder_delegate.set_results_presence(folder_index, has_results)
+                # Update the item
+                if hasattr(self, "folder_list") and self.folder_list:
+                    self.folder_list.update(
+                        self.folder_list.model().index(folder_index, 0)
+                    )
+
+                # Update scanner worker if it exists
+                if self._results_scanner_worker is not None:
+                    paths = [
+                        self.folder_list.item(i).data(Qt.UserRole)
+                        for i in range(self.folder_list.count())
+                    ]
+                    self._results_scanner_worker.set_folder_paths(paths)
+        except Exception:
+            pass
+
     def _create_scan_result_callback(self):
         """Create callback function for scan results.
 
@@ -4200,39 +4079,101 @@ class AnalysisGUI(QWidget):
         is running.
         """
 
+        # Keep callback minimal by delegating to class helper methods below.
         def _on_scan_result(idx, folder_path, has):
-            import contextlib
-
             # If delegate is missing there's nothing to do
             if not getattr(self, "folder_delegate", None):
                 return
 
             list_widget = getattr(self, "folder_list", None)
 
-            # If list widget is missing, attempt a positional update but
-            # suppress any errors (defensive fallback)
+            # If list widget is missing, try to update delegate directly and return
             if list_widget is None:
-                with contextlib.suppress(Exception):
-                    self.folder_delegate.set_results_presence(idx, has)
+                try:
+                    delegate = getattr(self, "folder_delegate", None)
+                    if delegate is not None and hasattr(
+                        delegate, "set_results_presence"
+                    ):
+                        delegate.set_results_presence(idx, has)
+                    else:
+                        logger.debug(
+                            "No folder_list and no usable folder_delegate to update for"
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed to update folder_delegate directly for index %s",
+                        idx,
+                    )
                 return
 
-            # Find the current index matching the folder path
-            target_index = None
-            for i in range(list_widget.count()):
-                with contextlib.suppress(Exception):
-                    if list_widget.item(i).data(Qt.UserRole) == folder_path:
-                        target_index = i
-                        break
-
+            target_index = self._find_list_index_by_path(list_widget, folder_path)
             if target_index is None:
                 return
 
-            # Update delegate and refresh the specific item
-            self.folder_delegate.set_results_presence(target_index, has)
-            with contextlib.suppress(Exception):
-                list_widget.update(list_widget.model().index(target_index, 0))
+            self._update_delegate_and_refresh(
+                list_widget, target_index, has, folder_path
+            )
 
         return _on_scan_result
+
+    def _find_list_index_by_path(self, list_widget, folder_path):
+        """Return the list index whose `Qt.UserRole` equals `folder_path`.
+
+        Returns `None` if not found. Skips items that raise when accessed.
+        """
+        # Defensive search: iterate and compare stored Qt.UserRole data
+        if list_widget is None:
+            return None
+
+        try:
+            count = list_widget.count()
+        except Exception:
+            logger.exception("Failed to get count from folder_list")
+            return None
+
+        for i in range(count):
+            try:
+                item = list_widget.item(i)
+                if item is None:
+                    continue
+                data = item.data(Qt.UserRole)
+                if data == folder_path:
+                    return i
+            except Exception:
+                logger.debug(
+                    "Skipping list item while scanning for path: %s",
+                    folder_path,
+                )
+                continue
+
+        return None
+
+    def _update_delegate_and_refresh(self, list_widget, target_index, has, folder_path):
+        """Set results presence on delegate and refresh the list item if possible."""
+        try:
+            if getattr(self, "folder_delegate", None) is not None:
+                self.folder_delegate.set_results_presence(target_index, has)
+        except Exception:
+            logger.exception(
+                "Failed to set results presence for index %s",
+                target_index,
+            )
+
+        try:
+            if list_widget is None:
+                logger.debug("No folder_list available to refresh for path")
+                return
+            model = list_widget.model()
+            if model is None:
+                logger.debug("Folder list model is None, cannot update item")
+                return
+            idx = model.index(target_index, 0)
+            if idx.isValid():
+                list_widget.update(idx)
+            else:
+                logger.debug("Model index invalid for target index")
+        except Exception:
+            logger.exception("Unexpected error while updating list widget for path")
 
     def _start_results_scanner(self):
         """Start a background `ResultsScannerWorker` in its own QThread."""
@@ -4284,11 +4225,10 @@ class AnalysisGUI(QWidget):
 
             if self._results_scanner_thread is not None:
                 self._results_scanner_thread.quit()
-                # Wait for thread to finish, but don't block forever
-                if not self._results_scanner_thread.wait(2000):  # Wait up to 2 seconds
+                # Use shorter timeout to avoid blocking UI
+                if not self._results_scanner_thread.wait(500):  # 500ms max
                     logger.warning("Results scanner thread did not stop gracefully")
-                    self._results_scanner_thread.terminate()
-                    self._results_scanner_thread.wait(1000)  # Wait for termination
+                    # Don't call terminate() - just continue cleanup
 
                 # Clean up references
                 self._results_scanner_thread = None
@@ -4301,12 +4241,48 @@ class AnalysisGUI(QWidget):
             self._results_scanner_thread = None
             self._results_scanner_worker = None
 
+    def cleanup_all_threads(self):
+        """Clean up all threads associated with this AnalysisGUI."""
+        logger.debug("Starting AnalysisGUI thread cleanup")
+        try:
+            # Stop results scanner
+            self._stop_results_scanner()
+
+            # Stop main analysis thread
+            if hasattr(self, "main_thread") and self.main_thread:
+                self.main_thread.stop()
+                if not self.main_thread.wait(1000):
+                    logger.warning("Main thread did not stop gracefully")
+
+            # Stop preview thread
+            if hasattr(self, "preview_thread") and self.preview_thread:
+                self.preview_thread.stop()
+                if not self.preview_thread.wait(1000):
+                    logger.warning("Preview thread did not stop gracefully")
+
+            # Stop batch processing thread
+            if hasattr(self, "batch_thread") and self.batch_thread:
+                if hasattr(self, "batch_worker"):
+                    self.batch_worker.stop()
+                self.batch_thread.quit()
+                if not self.batch_thread.wait(1000):
+                    logger.warning("Batch thread did not stop gracefully")
+
+            logger.debug("AnalysisGUI thread cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during AnalysisGUI thread cleanup: {e}")
+
     def closeEvent(self, event):  # noqa: N802 - Qt requires closeEvent signature
         """Ensure scanner thread is stopped when widget is closed."""
-        import contextlib
+        try:
+            # Attempt comprehensive thread cleanup
+            self.cleanup_all_threads()
+        except Exception as e:
+            logger.exception("Error stopping threads during closeEvent: %s", e)
 
-        with contextlib.suppress(Exception):
-            self._stop_results_scanner()
+        # Accept the event and call parent implementation
+        if event:
+            event.accept()
         return super().closeEvent(event)
 
     def _set_default_roi_ranges(self):

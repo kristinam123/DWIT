@@ -3,10 +3,17 @@
 For folder-based analysis in Droplet Wall Interaction Tool.
 """
 
-import contextlib
 import os
 
-from PySide6.QtCore import QObject, QRect, QSize, Qt, QThread, Signal
+from PySide6.QtCore import (
+    QMutex,
+    QObject,
+    QRect,
+    QSize,
+    Qt,
+    QWaitCondition,
+    Signal,
+)
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
@@ -200,6 +207,9 @@ class BatchProcessingWorker(QObject):
         self.should_stop = False
         # Flag to request skipping the current folder (continue to next)
         self.should_skip_current = False
+        # Add Qt synchronization primitives for proper pause/resume
+        self._pause_mutex = QMutex()
+        self._pause_condition = QWaitCondition()
 
         logger.debug(
             f"BatchProcessingWorker initialized with {len(folder_paths)} folders"
@@ -241,8 +251,10 @@ class BatchProcessingWorker(QObject):
 
             try:
                 # Handle pause state - wait until unpaused
+                self._pause_mutex.lock()
                 while self.is_paused and not self.should_stop:
-                    QThread.msleep(100)  # Sleep to avoid high CPU usage while paused
+                    self._pause_condition.wait(self._pause_mutex)  # Proper Qt wait
+                self._pause_mutex.unlock()
 
                 if self.should_stop:
                     break
@@ -309,12 +321,17 @@ class BatchProcessingWorker(QObject):
 
     def pause(self):
         """Pause processing after the current image is complete."""
+        self._pause_mutex.lock()
         self.is_paused = True
+        self._pause_mutex.unlock()
         logger.info("Batch processing paused")
 
     def resume(self):
         """Resume processing from where it was paused."""
+        self._pause_mutex.lock()
         self.is_paused = False
+        self._pause_condition.wakeAll()  # Wake up any waiting threads
+        self._pause_mutex.unlock()
         logger.info("Batch processing resumed")
 
     def stop(self):
@@ -391,6 +408,17 @@ class ResultsScannerWorker(QObject):
         self._running = False
         self._folder_paths = []
         self._stop_requested = False
+        # Initialize timer as None - will be created in start_scanning
+        self._scan_timer = None
+
+    def __del__(self):
+        """Ensure timer is cleaned up when worker is destroyed."""
+        try:
+            if hasattr(self, "_scan_timer") and self._scan_timer:
+                self._scan_timer.stop()
+                self._scan_timer.deleteLater()
+        except Exception:
+            pass  # Ignore cleanup errors during destruction
 
     def set_folder_paths(self, folder_paths: list[str]):
         """Set the list of folder paths to scan."""
@@ -424,43 +452,79 @@ class ResultsScannerWorker(QObject):
         """Safely emit scan result."""
         if self._stop_requested or not self._running:
             return
-        with contextlib.suppress(Exception):
-            self.scan_result.emit(i, folder_path, has)
+        # Emit scan result with proper error handling and logging
+        if self._stop_requested or not self._running:
+            return
 
-    def _interruptible_sleep(self, total_ms: int):
-        """Sleep for total_ms but check for stop requests every 200ms."""
-        sleep_remaining = total_ms
-        while sleep_remaining > 0 and self._running and not self._stop_requested:
-            sleep_chunk = min(sleep_remaining, 200)
-            QThread.msleep(sleep_chunk)
-            sleep_remaining -= sleep_chunk
+        try:
+            idx = int(i)
+            path = "" if folder_path is None else str(folder_path)
+            has_flag = bool(has)
+            self.scan_result.emit(idx, path, has_flag)
+        except Exception as exc:
+            # Log the failure but don't raise to avoid stopping the scanner loop
+            logger.exception(
+                "Failed to emit scan_result for folder %r (index=%r): %s",
+                folder_path,
+                i,
+                exc,
+            )
 
     def start_scanning(self):
-        """Start the scanning loop."""
+        """Start the scanning loop using QTimer."""
+        from PySide6.QtCore import QTimer
+
         self._running = True
         self._stop_requested = False
 
-        while self._running and not self._stop_requested:
-            try:
-                current_paths = self._folder_paths.copy()
+        # Create timer for periodic scanning in the worker's thread
+        self._scan_timer = QTimer(self)  # Parent to this QObject
+        self._scan_timer.timeout.connect(self._do_scan_iteration)
+        self._scan_timer.setSingleShot(False)
+        self._scan_timer.start(self.interval_ms)
 
-                for i, folder_path in enumerate(current_paths):
-                    if self._stop_requested or not self._running:
-                        break
+    def _do_scan_iteration(self):
+        """Perform one scan iteration."""
+        if self._stop_requested or not self._running:
+            if hasattr(self, "_scan_timer") and self._scan_timer:
+                self._scan_timer.stop()
+                self._scan_timer.deleteLater()
+                self._scan_timer = None
+            self.finished.emit()
+            return
 
-                    has = self._check_single_folder(folder_path)
-                    self._emit_scan_result(i, folder_path, has)
+        try:
+            current_paths = self._folder_paths.copy()
 
-                self._interruptible_sleep(self.interval_ms)
+            for i, folder_path in enumerate(current_paths):
+                if self._stop_requested or not self._running:
+                    break
 
-            except Exception:
-                # If something goes wrong, sleep and continue
-                if self._running and not self._stop_requested:
-                    QThread.msleep(1000)
+                has = self._check_single_folder(folder_path)
+                self._emit_scan_result(i, folder_path, has)
 
-        self.finished.emit()
+        except Exception:
+            # If something goes wrong, continue on next iteration
+            pass
 
     def stop(self):
         """Stop scanning after the current loop iteration."""
         self._stop_requested = True
         self._running = False
+
+        # Emit finished signal immediately to ensure cleanup
+        if hasattr(self, "_scan_timer") and self._scan_timer:
+            # Use QTimer.singleShot to safely stop timer from any thread
+            from PySide6.QtCore import QTimer
+
+            QTimer.singleShot(0, self._safe_timer_stop)
+        else:
+            self.finished.emit()
+
+    def _safe_timer_stop(self):
+        """Safely stop the timer from the correct thread."""
+        if hasattr(self, "_scan_timer") and self._scan_timer:
+            self._scan_timer.stop()
+            self._scan_timer.deleteLater()
+            self._scan_timer = None
+        self.finished.emit()

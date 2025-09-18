@@ -22,10 +22,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.core import AnalysisCore
 from src.utilities.logging_manager import get_logger, logging_manager
 from src.utilities.overlays import LogOverlay, NavigationOverlay
-from src.widgets import AnalysisGUI
+
+
+# Defer heavy imports until needed
+def _lazy_import_analysis_core():
+    """Lazy import of AnalysisCore to speed up startup."""
+    from src.core import AnalysisCore
+
+    return AnalysisCore
+
+
+def _lazy_import_analysis_gui():
+    """Lazy import of AnalysisGUI to speed up startup."""
+    from src.widgets import AnalysisGUI
+
+    return AnalysisGUI
+
 
 # Setup logger for this module
 logger = get_logger(__name__)
@@ -69,12 +83,15 @@ class AnalysisWindow(QWidget):
             # Extract and validate path
             self.folder_path = self._extract_path(folder_path)
 
-            # Initialize controller and GUI
-            self.controller = AnalysisCore(
+            # Initialize controller and GUI with lazy imports
+            analysis_core = _lazy_import_analysis_core()
+            analysis_gui = _lazy_import_analysis_gui()
+
+            self.controller = analysis_core(
                 self.folder_path, analysis_mode=self.analysis_mode
             )
 
-            self.gui = AnalysisGUI(self, self.controller)
+            self.gui = analysis_gui(self, self.controller)
 
             # Add GUI to layout
             layout.addWidget(self.gui)
@@ -246,47 +263,71 @@ class CellGUI(QWidget):
         return self.content
 
     def _init_free_sedimentation_page(self):
-        """Initialize the free sedimentation analysis page."""
+        """Initialize the free sedimentation analysis page (deferred)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
-        self.free_sedimentation_analysis_window = AnalysisWindow(
-            page, analysis_mode="free_sedimentation"
-        )
-        layout.addWidget(self.free_sedimentation_analysis_window)
+
+        # Defer the actual heavy initialization
+        def _init_heavy():
+            self.free_sedimentation_analysis_window = AnalysisWindow(
+                page, analysis_mode="free_sedimentation"
+            )
+            layout.addWidget(self.free_sedimentation_analysis_window)
+
+        # Defer heavy work to next event loop cycle
+        QTimer.singleShot(50, _init_heavy)
         return page
 
     def _init_contact_angle_page(self):
-        """Initialize the contact angle analysis page."""
+        """Initialize the contact angle analysis page (deferred)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
-        self.analysis_window = AnalysisWindow(page, analysis_mode="contact_angle")
-        layout.addWidget(self.analysis_window)
+
+        # Defer the actual heavy initialization
+        def _init_heavy():
+            self.analysis_window = AnalysisWindow(page, analysis_mode="contact_angle")
+            layout.addWidget(self.analysis_window)
+
+        # Defer heavy work to next event loop cycle
+        QTimer.singleShot(100, _init_heavy)
         return page
 
     def _init_channel_page(self):
-        """Initialize the channel analysis page."""
+        """Initialize the channel analysis page (deferred)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
-        self.channel_analysis_window = AnalysisWindow(page, analysis_mode="channel")
-        layout.addWidget(self.channel_analysis_window)
+
+        # Defer the actual heavy initialization
+        def _init_heavy():
+            self.channel_analysis_window = AnalysisWindow(page, analysis_mode="channel")
+            layout.addWidget(self.channel_analysis_window)
+
+        # Defer heavy work to next event loop cycle
+        QTimer.singleShot(150, _init_heavy)
         return page
 
     def _init_structured_packing_page(self):
-        """Initialize the structured packing analysis page."""
+        """Initialize the structured packing analysis page (deferred)."""
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
-        self.structured_packing_analysis_window = AnalysisWindow(
-            page, analysis_mode="structured_packing"
-        )
-        layout.addWidget(self.structured_packing_analysis_window)
+
+        # Defer the actual heavy initialization
+        def _init_heavy():
+            self.structured_packing_analysis_window = AnalysisWindow(
+                page, analysis_mode="structured_packing"
+            )
+            layout.addWidget(self.structured_packing_analysis_window)
+
+        # Defer heavy work to next event loop cycle
+        QTimer.singleShot(200, _init_heavy)
         return page
 
     def _show_terminal_overlay(self):
@@ -465,6 +506,28 @@ class CellGUI(QWidget):
         # Call parent implementation to ensure normal behavior
         super().mousePressEvent(event)
 
+    def cleanup_on_close(self):
+        """Clean up any resources when the GUI is closing."""
+        logger.debug("Starting CellGUI cleanup")
+        try:
+            # Clean up any analysis windows that might have running threads
+            analysis_window_attrs = [
+                "analysis_window",
+                "free_sedimentation_analysis_window",
+                "channel_analysis_window",
+                "structured_packing_analysis_window",
+            ]
+
+            for attr_name in analysis_window_attrs:
+                if hasattr(self, attr_name):
+                    analysis_window = getattr(self, attr_name)
+                    if hasattr(analysis_window, "gui"):
+                        # Stop any background threads in the analysis GUI
+                        analysis_window.gui.cleanup_all_threads()
+            logger.debug("CellGUI cleanup completed")
+        except Exception as e:
+            logger.error(f"Error during CellGUI cleanup: {e}")
+
 
 class DWIT(QMainWindow):
     """Main window for the Droplet Wall Interaction Tool (DWIT)."""
@@ -508,6 +571,20 @@ class DWIT(QMainWindow):
         layout.addWidget(self.gui)
         logger.debug("DWIT UI components initialized and added to layout")
 
+    def closeEvent(self, event):  # noqa: N802 - Qt requires closeEvent signature
+        """Handle close event with proper cleanup."""
+        logger.debug("DWIT main window close event triggered")
+        try:
+            # Clean up GUI components that might have threads
+            if hasattr(self, "gui"):
+                self.gui.cleanup_on_close()
+        except Exception as e:
+            logger.error(f"Error during GUI cleanup: {e}")
+
+        # Accept the event and call parent
+        event.accept()
+        super().closeEvent(event)
+
 
 def cleanup_logging():
     """Restore original stdout/stderr streams on dwit exit."""
@@ -526,6 +603,29 @@ def cleanup_logging():
         logger.debug("Logging cleanup completed")
     except Exception as e:
         logger.error(f"Error during logging cleanup: {e}")
+
+
+def cleanup_all_threads():
+    """Clean up all running threads before application exit."""
+    logger.debug("Starting comprehensive thread cleanup...")
+    try:
+        # Import here to avoid circular imports
+        from PySide6.QtCore import QThreadPool
+
+        # Stop all active thread pools
+        QThreadPool.globalInstance().waitForDone(2000)
+
+        # Clean up any thread manager instances
+        try:
+            from src.utilities.thread_manager import thread_manager
+
+            thread_manager.stop_all(wait_ms=1000)
+        except ImportError:
+            pass  # thread_manager may not exist yet
+
+        logger.debug("Thread cleanup completed")
+    except Exception as e:
+        logger.error(f"Error during thread cleanup: {e}")
 
 
 def setup_memory_management():
@@ -612,10 +712,9 @@ if __name__ == "__main__":
             lambda: settings.setValue("windowState", window.saveState())
         )
 
-        # Connect close event to cleanup logging
+        # Connect comprehensive cleanup on quit
+        dwit.aboutToQuit.connect(cleanup_all_threads)
         dwit.aboutToQuit.connect(cleanup_logging)
-
-        # Cleanup timer on quit
         dwit.aboutToQuit.connect(gc_timer.stop)
 
         window.show()
