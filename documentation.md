@@ -261,8 +261,10 @@ Core analysis engine for DWIT. Orchestrates the pipeline, per-mode behavior, con
 Drives analysis operations, exposes Qt Properties/Signals, and persists per-mode settings.
 
 **Highlights**:
-- Pipeline: rotate + crop → background → threshold/contour → intersections/lines → metrics → save.
+- Pipeline: rotate + crop → background → threshold/contour → area/diameter calculation → intersections/lines → metrics → save.
 - Modes: `free_sedimentation`, `contact_angle`, `channel`, `structured_packing`.
+- Measurements: Droplet area, equivalent diameter (D=√(4A/π)), contour dimensions, center coordinates.
+- Visualization: 30% transparent green area overlay, contour outlines, measurement annotations.
 - Fitting: Arc (default), Tangent, Polynom, Ellipse.
  - Saving: Per-frame overlays to the selected folder; raw Excel is written to the same folder as `results_raw.xlsx`.
 

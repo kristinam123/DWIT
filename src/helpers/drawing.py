@@ -12,13 +12,48 @@ from src.utilities.logging_manager import get_logger
 logger = get_logger(__name__)
 
 
+def draw_filled_contour(img, contour, color=(0, 255, 0), alpha=0.3):
+    """Draw a filled contour with transparency.
+
+    Args:
+    ----
+        img: Input image
+        contour: Contour points
+        color: Fill color in BGR format (default: green)
+        alpha: Transparency level (0.0 = transparent, 1.0 = opaque)
+
+    Returns:
+    -------
+        Modified image with filled contour
+
+    """
+    if contour is None or len(contour) == 0:
+        return img
+
+    try:
+        # Create a copy for overlay
+        overlay = img.copy()
+
+        # Fill the contour on the overlay as-is
+        cv2.fillPoly(overlay, [contour], color)
+
+        # Blend with original image
+        cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, img)
+
+        logger.debug(f"Drew filled contour with color {color} and alpha {alpha}")
+        return img
+    except Exception as e:
+        logger.error(f"Error drawing filled contour: {e}")
+        return img
+
+
 def draw_dual_baselines(
     img,
     y1_left,
     y1_right,
-    color1=(0, 255, 0),
+    color1=(0, 0, 255),
     color2=(0, 0, 255),
-    thickness=4,
+    thickness=3,
 ):
     """Draw two horizontal baselines with optional outlines on an image."""
     img_width = img.shape[1]
@@ -34,7 +69,7 @@ def draw_dual_baselines(
         logger.error(f"Error drawing dual baselines: {e}")
 
 
-def draw_axis_line(img, y, color=(255, 255, 0), thickness=1):
+def draw_axis_line(img, y, color=(0, 0, 255), thickness=3):
     """Draw a horizontal axis line at y."""
     img_width = img.shape[1]
     logger.debug(f"Drawing axis line at y={y}, color={color}, thickness={thickness}")

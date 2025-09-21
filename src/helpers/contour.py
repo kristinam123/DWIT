@@ -815,3 +815,70 @@ def filter_contour_by_baseline_slope(contour, y1_left, y1_right):
         return contour
 
     return filtered_contour
+
+
+def filter_contour_by_vertical_lines(contour, vertical_left, vertical_right):
+    """Remove contour portions between vertical lines, keep portions outside.
+
+    Removes contour points that lie between the vertical line boundaries,
+    keeping only the portions of the contour outside the vertical lines.
+
+    Args:
+    ----
+        contour: The input contour to filter
+        vertical_left: Left vertical line coordinates (x1, y1, x2, y2)
+        vertical_right: Right vertical line coordinates (x1, y1, x2, y2)
+
+    Returns:
+    -------
+        Contour with points only outside the vertical lines
+
+    """
+    # Handle edge cases
+    if contour is None or len(contour) == 0:
+        return contour
+
+    # Handle cases where vertical lines are not defined
+    if vertical_left is None or vertical_right is None:
+        return contour
+
+    # Extract x-coordinates from vertical lines
+    x_left = vertical_left[0]  # x1 from (x1, y1, x2, y2)
+    x_right = vertical_right[0]  # x1 from (x1, y1, x2, y2)
+
+    # Ensure left is actually to the left of right
+    if x_left > x_right:
+        x_left, x_right = x_right, x_left
+
+    # Step 1: Prepare contour points
+    contour_points, original_shape = _prepare_contour_points(contour)
+    if contour_points is None:
+        return contour
+
+    # Step 2: Filter points to keep only those OUTSIDE vertical lines
+    x_coords = contour_points[:, 0]
+    y_coords = contour_points[:, 1]
+
+    # Find points OUTSIDE the vertical lines (left of left line OR right of right line)
+    outside_lines = (x_coords < x_left) | (x_coords > x_right)
+
+    # If no points are outside the lines, return empty contour
+    if not np.any(outside_lines):
+        if original_shape is not None and len(original_shape) == 3:
+            return np.array([], dtype=np.int32).reshape(0, 1, 2)
+        else:
+            return np.array([], dtype=np.int32).reshape(0, 2)
+
+    # Keep only the points outside the lines
+    filtered_x = x_coords[outside_lines]
+    filtered_y = y_coords[outside_lines]
+    filtered_points = np.column_stack((filtered_x, filtered_y))
+
+    # Convert back to original OpenCV contour format
+    if original_shape is not None and len(original_shape) == 3:
+        # Reshape to [n, 1, 2] format
+        filtered_contour = filtered_points.reshape(-1, 1, 2).astype(np.int32)
+    else:
+        filtered_contour = filtered_points.astype(np.int32)
+
+    return filtered_contour

@@ -102,11 +102,37 @@ def _extract_data_from_results(result_lists, num_times):
         "receding_angles": ensure_list(
             result_lists["receding_contact_angles"], num_times
         ),
+        "area_px": ensure_list(
+            result_lists.get("area_px", [float("nan")] * num_times), num_times
+        ),
+        "area_mm": ensure_list(
+            result_lists.get("area_mm", [float("nan")] * num_times), num_times
+        ),
+        "diameter_px": ensure_list(
+            result_lists.get("diameter_px", [float("nan")] * num_times), num_times
+        ),
+        "diameter_mm": ensure_list(
+            result_lists.get("diameter_mm", [float("nan")] * num_times), num_times
+        ),
         "rect_width_px": ensure_list(result_lists["rect_width_px"], num_times),
         "rect_height_px": ensure_list(result_lists["rect_height_px"], num_times),
         "rect_width_mm": ensure_list(result_lists["rect_width_mm"], num_times),
         "rect_height_mm": ensure_list(result_lists["rect_height_mm"], num_times),
+        "ellipse_diameter_px": ensure_list(
+            result_lists.get("ellipse_diameter_px", [float("nan")] * num_times),
+            num_times,
+        ),
+        "ellipse_diameter_mm": ensure_list(
+            result_lists.get("ellipse_diameter_mm", [float("nan")] * num_times),
+            num_times,
+        ),
         "velocities": ensure_list(result_lists["velocity"], num_times),
+        "area_diameter_px": ensure_list(
+            result_lists.get("area_diameter_px", [float("nan")] * num_times), num_times
+        ),
+        "area_diameter_mm": ensure_list(
+            result_lists.get("area_diameter_mm", [float("nan")] * num_times), num_times
+        ),
         "centers": ensure_list(result_lists["center_points_px"], num_times),
         "centers_mm": ensure_list(result_lists["center_points_mm"], num_times),
         "contact_line_px": ensure_list(result_lists["contact_line_px"], num_times),
@@ -114,18 +140,26 @@ def _extract_data_from_results(result_lists, num_times):
     }
 
     # Process discontinuous velocities
-    dv_px_s_val = result_lists.get("discontinuous_velocity_px_s")
-    dv_mm_s_val = result_lists.get("discontinuous_velocity_mm_s")
+    data["discontinuous_velocity_px_s"] = ensure_list(
+        result_lists.get("discontinuous_velocity_px_s"), num_times
+    )
+    data["discontinuous_velocity_mm_s"] = ensure_list(
+        result_lists.get("discontinuous_velocity_mm_s"), num_times
+    )
 
-    if isinstance(dv_px_s_val, (float, int)):
-        data["discontinuous_velocity_px_s"] = [dv_px_s_val] * num_times
-    else:
-        data["discontinuous_velocity_px_s"] = [float("nan")] * num_times
-
-    if isinstance(dv_mm_s_val, (float, int)):
-        data["discontinuous_velocity_mm_s"] = [dv_mm_s_val] * num_times
-    else:
-        data["discontinuous_velocity_mm_s"] = [float("nan")] * num_times
+    # Process additional structured packing metrics
+    data["vertical_line_distance_px"] = ensure_list(
+        result_lists.get("vertical_line_distance_px"), num_times
+    )
+    data["vertical_line_distance_mm"] = ensure_list(
+        result_lists.get("vertical_line_distance_mm"), num_times
+    )
+    data["contact_time_frames"] = ensure_list(
+        result_lists.get("contact_time_frames"), num_times
+    )
+    data["contact_time_seconds"] = ensure_list(
+        result_lists.get("contact_time_seconds"), num_times
+    )
 
     return data
 
@@ -249,15 +283,23 @@ def _create_raw_data_dict(times, extracted_data, coordinates, availability):
     """
     raw_data = {
         "Time": times,
+        "Area [px]": extracted_data["area_px"],
+        "Area [mm]": extracted_data["area_mm"],
+        "Diameter [px]": extracted_data["diameter_px"],
+        "Diameter [mm]": extracted_data["diameter_mm"],
         "Contour width [px]": extracted_data["rect_width_px"],
         "Contour height [px]": extracted_data["rect_height_px"],
         "Contour width [mm]": extracted_data["rect_width_mm"],
         "Contour height [mm]": extracted_data["rect_height_mm"],
+        "Ellipse diameter [px]": extracted_data["ellipse_diameter_px"],
+        "Ellipse diameter [mm]": extracted_data["ellipse_diameter_mm"],
         "X of center [px]": coordinates["centers_x"],
         "Y of center [px]": coordinates["centers_y"],
         "X of center [mm]": coordinates["centers_x_mm"],
         "Y of center [mm]": coordinates["centers_y_mm"],
         "Velocity": extracted_data["velocities"],
+        "Area diameter [px]": extracted_data["area_diameter_px"],
+        "Area diameter [mm]": extracted_data["area_diameter_mm"],
         "Discontinuous Velocity [px/s]": extracted_data["discontinuous_velocity_px_s"],
         "Discontinuous Velocity [mm/s]": extracted_data["discontinuous_velocity_mm_s"],
     }

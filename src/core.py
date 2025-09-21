@@ -32,6 +32,7 @@ from src.helpers.contour import (
     calculate_drop_area,
     crop_contour_points,
     filter_contour_by_baseline_slope,
+    filter_contour_by_vertical_lines,
     process_contour,
 )
 from src.helpers.drawing import (
@@ -39,6 +40,7 @@ from src.helpers.drawing import (
     draw_center_point,
     draw_connection_line,
     draw_dual_baselines,
+    draw_filled_contour,
     draw_intersection_points,
     draw_rectangle,
     highlight_interaction_zone,
@@ -129,6 +131,9 @@ class AnalysisCore(QObject):
                 "*.gif",
                 "*.tiff",
             ]
+
+            # Initialize contour tracking for area/diameter calculations
+            self._current_contour = None
 
             # Calculated values - output_path is the folder where results are written
             self.output_path = self._folder_path if self._folder_path else ""
@@ -265,6 +270,15 @@ class AnalysisCore(QObject):
         if self._folder_path != value:
             logger.info(f"Folder path changed from '{self._folder_path}' to '{value}'")
             self._folder_path = value
+
+            # Reset vertical lines when folder changes (for structured_packing mode)
+            if self.analysis_mode == "structured_packing":
+                self._vertical_left = None
+                self._vertical_right = None
+                logger.debug(
+                    "Reset vertical lines for new folder in structured_packing mode"
+                )
+
             # Save to settings
             self.save_setting("folderPath", value)
             # Update output path (no 'Output' subfolder)
@@ -412,6 +426,10 @@ class AnalysisCore(QObject):
         self._baseline = self.settings.value("baseline", 0, type=int)
         self._fitting_mode = self.settings.value("fitting_mode", "Arc", type=str)
         self._polynom = self.settings.value("polynom", 3, type=int)
+
+        # Structured packing vertical lines (detected once, used for all images)
+        self._vertical_left = None
+        self._vertical_right = None
 
     def _load_mode_specific_settings(self) -> None:
         """Load settings that depend on the selected analysis mode."""
@@ -1059,11 +1077,19 @@ class AnalysisCore(QObject):
             "receding_contact_angles",
             "left_contact_angle_polynom",
             "right_contact_angle_polynom",
+            "area_px",
+            "area_mm",
+            "diameter_px",
+            "diameter_mm",
             "rect_width_px",
             "rect_width_mm",
             "rect_height_px",
             "rect_height_mm",
+            "ellipse_diameter_px",
+            "ellipse_diameter_mm",
             "velocity",
+            "area_diameter_px",
+            "area_diameter_mm",
             "contact_line_px",
             "contact_line_mm",
         ]
@@ -1097,6 +1123,12 @@ class AnalysisCore(QObject):
             result_lists["left_contact_detected"] = [False] * num_files
             result_lists["right_contact_detected"] = [False] * num_files
             result_lists["contact_status"] = [""] * num_files
+            result_lists["discontinuous_velocity_px_s"] = [float("NaN")] * num_files
+            result_lists["discontinuous_velocity_mm_s"] = [float("NaN")] * num_files
+            result_lists["vertical_line_distance_px"] = [float("NaN")] * num_files
+            result_lists["vertical_line_distance_mm"] = [float("NaN")] * num_files
+            result_lists["contact_time_frames"] = [float("NaN")] * num_files
+            result_lists["contact_time_seconds"] = [float("NaN")] * num_files
 
     def _prepare_background_image(
         self, background_files, files, use_first_as_background
@@ -1168,9 +1200,11 @@ class AnalysisCore(QObject):
         vertical_left, vertical_right = None, None
 
         if self.analysis_mode == "structured_packing":
-            (vertical_left, vertical_right) = self._detect_structured_packing_lines(
-                middle_src
+            # For structured packing, detect vertical lines once from middle image
+            (self._vertical_left, self._vertical_right) = (
+                self._detect_structured_packing_lines(middle_src)
             )
+            return None, None, self._vertical_left, self._vertical_right
         elif self.analysis_mode in ["free_sedimentation", "channel"]:
             # No baseline detection for free_sedimentation or channel
             return None, None, None, None
@@ -1488,7 +1522,7 @@ class AnalysisCore(QObject):
                 )
 
     def _store_rect_dimensions(self, result_lists, rect_w, rect_h, q):
-        """Store rectangle width and height in px and mm."""
+        """Store rectangle dimensions in px and mm, and calculate area/diameter."""
         if rect_w is not None and not math.isnan(rect_w):
             result_lists["rect_width_px"][q] = rect_w
             result_lists["rect_width_mm"][q] = (
@@ -1499,6 +1533,81 @@ class AnalysisCore(QObject):
             result_lists["rect_height_mm"][q] = (
                 rect_h / self.pixel if self.pixel and self.pixel > 0 else 0
             )
+
+        # Calculate ellipse diameter: d = 2*sqrt(Width/2 * Height/2)
+        ellipse_diameter_px = float("nan")
+        ellipse_diameter_mm = float("nan")
+        if (
+            rect_w is not None
+            and rect_h is not None
+            and not math.isnan(rect_w)
+            and not math.isnan(rect_h)
+            and rect_w > 0
+            and rect_h > 0
+        ):
+            # d = 2*sqrt(Width/2 * Height/2) = sqrt(Width*Height)
+            ellipse_diameter_px = math.sqrt(rect_w * rect_h)
+            ellipse_diameter_mm = (
+                ellipse_diameter_px / self.pixel
+                if self.pixel and self.pixel > 0
+                else float("nan")
+            )
+
+        # Store ellipse diameter values
+        if isinstance(result_lists.get("ellipse_diameter_px"), list):
+            result_lists["ellipse_diameter_px"][q] = ellipse_diameter_px
+        if isinstance(result_lists.get("ellipse_diameter_mm"), list):
+            result_lists["ellipse_diameter_mm"][q] = ellipse_diameter_mm
+
+        # Calculate area and diameter from current contour or bounding rectangle
+        area_px = float("nan")
+        diameter_px = float("nan")
+
+        # Try to get contour from _current_contour if available
+        if hasattr(self, "_current_contour") and self._current_contour is not None:
+            area_px = self._calculate_robust_area(self._current_contour)
+            diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
+        elif (
+            rect_w is not None
+            and rect_h is not None
+            and not math.isnan(rect_w)
+            and not math.isnan(rect_h)
+        ):
+            # Fallback: estimate area as ellipse using bounding rectangle
+            # A = π * (w/2) * (h/2) = π * w * h / 4
+            area_px = math.pi * rect_w * rect_h / 4
+            diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
+
+        # Store area and diameter values
+        self._store_area_diameter_values(result_lists, area_px, diameter_px, q)
+
+    def _store_area_diameter_values(self, result_lists, area_px, diameter_px, q):
+        """Store area and diameter values in px and mm."""
+        # Store pixel values
+        if isinstance(result_lists.get("area_px"), list):
+            area_value = area_px if not math.isnan(area_px) else float("nan")
+            result_lists["area_px"][q] = area_value
+        if isinstance(result_lists.get("diameter_px"), list):
+            diameter_value = (
+                diameter_px if not math.isnan(diameter_px) else float("nan")
+            )
+            result_lists["diameter_px"][q] = diameter_value
+
+        # Store mm values
+        if self.pixel is not None and self.pixel > 0 and not math.isnan(area_px):
+            # Area conversion: area_mm = area_px / (pixel^2)
+            area_mm = area_px / (self.pixel * self.pixel)
+            diameter_mm = diameter_px / self.pixel
+
+            if isinstance(result_lists.get("area_mm"), list):
+                result_lists["area_mm"][q] = area_mm
+            if isinstance(result_lists.get("diameter_mm"), list):
+                result_lists["diameter_mm"][q] = diameter_mm
+        else:
+            if isinstance(result_lists.get("area_mm"), list):
+                result_lists["area_mm"][q] = float("nan")
+            if isinstance(result_lists.get("diameter_mm"), list):
+                result_lists["diameter_mm"][q] = float("nan")
 
     def _store_contact_line_data(self, result_lists, result_images, q):
         """Store contact line data from result images."""
@@ -1532,6 +1641,59 @@ class AnalysisCore(QObject):
         result_images["left_contact_frame"] = result_lists["left_contact_frame"]
         result_images["right_contact_frame"] = result_lists["right_contact_frame"]
 
+        # Calculate discontinuous velocity if both contacts are detected
+        self._calculate_discontinuous_velocity(result_lists, result_images, q)
+
+    def _calculate_discontinuous_velocity(self, result_lists, result_images, q):
+        """Calculate discontinuous velocity for structured_packing mode."""
+        vertical_left = result_images.get("vertical_left")
+        vertical_right = result_images.get("vertical_right")
+        left_contact_frame = result_lists["left_contact_frame"]
+        right_contact_frame = result_lists["right_contact_frame"]
+
+        # Store vertical line distance for current frame
+        if vertical_left and vertical_right:
+            # Calculate distance between vertical lines (horizontal distance)
+            x1_left = vertical_left[0]  # x coordinate of left line
+            x1_right = vertical_right[0]  # x coordinate of right line
+            distance_px = abs(x1_right - x1_left)
+            distance_mm = distance_px / self.pixel if self.pixel > 0 else 0
+
+            result_lists["vertical_line_distance_px"][q] = distance_px
+            result_lists["vertical_line_distance_mm"][q] = distance_mm
+
+        # Calculate velocity if both contacts have occurred
+        if (
+            left_contact_frame is not None
+            and right_contact_frame is not None
+            and vertical_left
+            and vertical_right
+        ):
+
+            # Calculate time between contacts
+            frame_diff = abs(right_contact_frame - left_contact_frame)
+            time_seconds = frame_diff / self.fps if self.fps > 0 else 0
+
+            # Calculate distance between lines
+            x1_left = vertical_left[0]
+            x1_right = vertical_right[0]
+            distance_px = abs(x1_right - x1_left)
+            distance_mm = distance_px / self.pixel if self.pixel > 0 else 0
+
+            # Calculate velocity
+            velocity_px_per_frame = distance_px / frame_diff if frame_diff > 0 else 0
+            velocity_px_per_s = velocity_px_per_frame * self.fps if self.fps > 0 else 0
+            velocity_mm_per_s = distance_mm / time_seconds if time_seconds > 0 else 0
+
+            # Store results (apply to all frames from first contact onwards)
+            start_frame = min(left_contact_frame, right_contact_frame)
+            end_frame = len(result_lists["contact_time_frames"])
+            for i in range(start_frame, end_frame):
+                result_lists["discontinuous_velocity_px_s"][i] = velocity_px_per_s
+                result_lists["discontinuous_velocity_mm_s"][i] = velocity_mm_per_s
+                result_lists["contact_time_frames"][i] = frame_diff
+                result_lists["contact_time_seconds"][i] = time_seconds
+
     def _handle_progress_callback_standard(
         self, progress_callback, q, files, result_lists, result_images, rect_w, rect_h
     ):
@@ -1552,6 +1714,19 @@ class AnalysisCore(QObject):
                     rect_height_mm = rect_h / self.pixel if self.pixel > 0 else 0
                     # Don't overwrite the list - this is just for display
                     result_images["rect_height_mm"] = rect_height_mm
+
+                # Add area diameter for real-time display
+                area_diameter_list = result_lists.get("area_diameter_mm", [])
+                if "area_diameter_mm" not in result_images and q < len(
+                    area_diameter_list
+                ):
+                    area_diameter_mm = area_diameter_list[q]
+                    if not math.isnan(area_diameter_mm):
+                        result_images["area_diameter_mm"] = area_diameter_mm
+                        logger.debug(
+                            "Added area_diameter_mm to result_images: "
+                            f"{area_diameter_mm}"
+                        )
 
             continue_processing = progress_callback(
                 (q + 1) / len(files),
@@ -1592,6 +1767,9 @@ class AnalysisCore(QObject):
             result_lists["center_points_px"], self.pixel, self.fps
         )
 
+        # Calculate area-based diameter from detected area
+        self._calculate_area_based_diameter(result_lists)
+
         # Calculate discontinuous velocity for structured packing mode
         if self.analysis_mode == "structured_packing":
             self._calculate_discontinuous_velocity(
@@ -1602,6 +1780,34 @@ class AnalysisCore(QObject):
         self._handle_final_progress_and_save(
             result_lists, save_files, processing_stopped, progress_callback, time, files
         )
+
+    def _calculate_area_based_diameter(self, result_lists):
+        """Calculate diameter from detected area for all frames."""
+        if "area_px" not in result_lists or "area_diameter_px" not in result_lists:
+            return
+
+        for i, area_px in enumerate(result_lists["area_px"]):
+            # Calculate diameter from area: d = sqrt(4*A/π)
+            if area_px is not None and not math.isnan(area_px) and area_px > 0:
+                diameter_px = math.sqrt(4 * area_px / math.pi)
+                diameter_mm = (
+                    diameter_px / self.pixel
+                    if self.pixel and self.pixel > 0
+                    else float("nan")
+                )
+            else:
+                diameter_px = float("nan")
+                diameter_mm = float("nan")
+
+            # Store the calculated values
+            if isinstance(result_lists.get("area_diameter_px"), list) and i < len(
+                result_lists["area_diameter_px"]
+            ):
+                result_lists["area_diameter_px"][i] = diameter_px
+            if isinstance(result_lists.get("area_diameter_mm"), list) and i < len(
+                result_lists["area_diameter_mm"]
+            ):
+                result_lists["area_diameter_mm"][i] = diameter_mm
 
     def _calculate_discontinuous_velocity(
         self, result_lists, vertical_left, vertical_right
@@ -1786,9 +1992,13 @@ class AnalysisCore(QObject):
             result_images["original"] = processed_img.copy()
 
         # Extract measurements from contours
-        center_point, rect_width, rect_height = self._extract_contour_measurements(
-            contours, result_lists
-        )
+        (
+            center_point,
+            rect_width,
+            rect_height,
+            area_px,
+            diameter_px,
+        ) = self._extract_contour_measurements(contours, result_lists)
 
         # Process intersection points and contact line calculations
         contact_line_px, contact_line_mm = self._process_intersection_points(
@@ -1844,12 +2054,25 @@ class AnalysisCore(QObject):
         center_point = [float("nan"), float("nan")]
         rect_width = float("nan")
         rect_height = float("nan")
+        area_px = float("nan")
+        diameter_px = float("nan")
 
         if not contours or contours[0] is None:
-            return center_point, rect_width, rect_height
+            return center_point, rect_width, rect_height, area_px, diameter_px
 
         # Process any detected contours to extract measurements
         largest_contour = contours[0]
+
+        # Store the contour for later use (for area calculation in other functions)
+        # We'll store it temporarily in result_lists if the structure allows
+        if hasattr(self, "_current_contour"):
+            self._current_contour = largest_contour
+
+        # Calculate contour area with robust handling for open contours
+        area_px = self._calculate_robust_area(largest_contour)
+
+        # Calculate diameter using D = sqrt(4*A/pi)
+        diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
 
         moment = cv2.moments(largest_contour)
         if moment["m00"] != 0 and moment["m00"] is not None:
@@ -1866,7 +2089,7 @@ class AnalysisCore(QObject):
         rect_width = w
         rect_height = h
 
-        return center_point, rect_width, rect_height
+        return center_point, rect_width, rect_height, area_px, diameter_px
 
     def _process_intersection_points(
         self,
@@ -2168,6 +2391,12 @@ class AnalysisCore(QObject):
         processed_img = self._prepare_image(src, result_images)
         background = self._prepare_background(processed_img, background)
 
+        # For structured_packing mode, use pre-detected vertical lines
+        if self.analysis_mode == "structured_packing":
+            vertical_left, vertical_right = self._vertical_left, self._vertical_right
+            # Store vertical lines in result_images for preview
+            result_images["vertical_left"] = vertical_left
+            result_images["vertical_right"] = vertical_right
         # Create baseline visualization
         self._create_baseline_visualization(
             processed_img, y1_left, y1_right, result_images
@@ -2180,13 +2409,13 @@ class AnalysisCore(QObject):
             result_images,
             y1_left,
             y1_right,
+            vertical_left if self.analysis_mode == "structured_packing" else None,
+            vertical_right if self.analysis_mode == "structured_packing" else None,
         )
         if largest_contour is None:
-            # Edge case: structured_packing + preview mode + no valid contour
-            # Show the original (middle) frame as result so something is displayed
-            if self.analysis_mode == "structured_packing":
-                result_images["result"] = result_images["original"].copy()
-            return processed_img, [None], None
+            return self._handle_no_contour_case(
+                processed_img, result_images, vertical_left, vertical_right
+            )
 
         # Process contour measurements and visualization
         cx, cy = self._process_contour_measurements(
@@ -2199,15 +2428,24 @@ class AnalysisCore(QObject):
             q,
         )
 
-        # Handle structured packing mode
-        self._handle_structured_packing_mode(
-            largest_contour,
-            vertical_left,
-            vertical_right,
-            vis_img,
-            processed_img,
-            result_images,
-        )
+        # Handle structured packing mode - ALWAYS draw vertical lines
+        if self.analysis_mode == "structured_packing":
+            self._handle_structured_packing_mode(
+                largest_contour,
+                vertical_left,
+                vertical_right,
+                vis_img,
+                processed_img,
+                result_images,
+            )
+            # Ensure vertical lines are drawn on all result images
+            if vertical_left and vertical_right:
+                self._draw_vertical_lines_on_all_result_images(
+                    vertical_left, vertical_right, result_images
+                )
+        else:
+            # For non-structured_packing modes, handle normally
+            pass
 
         # Process intersection points and angles
         intersection_points = self._process_intersection_and_angles(
@@ -2230,6 +2468,13 @@ class AnalysisCore(QObject):
             return processed_img, [largest_contour], angles
 
         # Calculate contact angles and create final result
+        # For structured_packing mode, get vertical lines from result_images
+        final_vertical_left = vertical_left
+        final_vertical_right = vertical_right
+        if self.analysis_mode == "structured_packing":
+            final_vertical_left = result_images.get("vertical_left", vertical_left)
+            final_vertical_right = result_images.get("vertical_right", vertical_right)
+
         angles = self._calculate_final_contact_angles_and_result(
             intersection_points,
             largest_contour,
@@ -2240,8 +2485,8 @@ class AnalysisCore(QObject):
             y1_right,
             processed_img,
             result_images,
-            vertical_left,
-            vertical_right,
+            final_vertical_left,
+            final_vertical_right,
             init_data,
             result_lists,
         )
@@ -2367,7 +2612,14 @@ class AnalysisCore(QObject):
             )
 
     def _find_and_validate_contours(
-        self, processed_img, background, result_images, y1_left=None, y1_right=None
+        self,
+        processed_img,
+        background,
+        result_images,
+        y1_left=None,
+        y1_right=None,
+        vertical_left=None,
+        vertical_right=None,
     ):
         """Find and validate contours in the image."""
         # Background subtraction and thresholding
@@ -2401,12 +2653,39 @@ class AnalysisCore(QObject):
                 result_images["fallback"] = vis_img.copy()
                 return None, vis_img
 
-            # Find largest valid contour and draw it
+            # Find largest valid contour and apply appropriate filtering
             largest_contour = max(valid_contours, key=cv2.contourArea)
-            largest_contour = filter_contour_by_baseline_slope(
-                contour=largest_contour, y1_left=y1_left, y1_right=y1_right
+
+            # Apply filtering based on analysis mode
+            is_structured_packing = (
+                self.analysis_mode == "structured_packing"
+                and vertical_left is not None
+                and vertical_right is not None
             )
-            cv2.drawContours(vis_img, [largest_contour], -1, (0, 255, 0), 2)
+
+            if is_structured_packing:
+                # For structured_packing mode, filter by vertical lines
+                largest_contour = filter_contour_by_vertical_lines(
+                    contour=largest_contour,
+                    vertical_left=vertical_left,
+                    vertical_right=vertical_right,
+                )
+                # Draw filtered contour (trimmed at vertical lines)
+                if len(largest_contour) > 0:
+                    draw_filled_contour(
+                        vis_img, largest_contour, color=(0, 255, 0), alpha=0.3
+                    )
+                    cv2.drawContours(vis_img, [largest_contour], -1, (0, 255, 0), 3)
+            else:
+                # For other modes (especially contact_angle), filter by baseline slope
+                largest_contour = filter_contour_by_baseline_slope(
+                    contour=largest_contour, y1_left=y1_left, y1_right=y1_right
+                )
+                # Draw normally filtered contour
+                draw_filled_contour(
+                    vis_img, largest_contour, color=(0, 255, 0), alpha=0.3
+                )
+                cv2.drawContours(vis_img, [largest_contour], -1, (0, 255, 0), 2)
 
             return largest_contour, vis_img
 
@@ -2415,6 +2694,35 @@ class AnalysisCore(QObject):
             result_images["contour"] = vis_img.copy()
             result_images["fallback"] = vis_img.copy()
             return None, vis_img
+
+    def _handle_no_contour_case(
+        self, processed_img, result_images, vertical_left, vertical_right
+    ):
+        """Handle preview/result when no contour is found.
+
+        Returns tuple (processed_img, [None], None) consistent with callers.
+        """
+        # Edge case: structured_packing + preview mode + no valid contour
+        # Show the original (middle) frame as result so something is displayed
+        if self.analysis_mode == "structured_packing":
+            # Use the image with vertical lines if available, otherwise use original
+            if "original" in result_images and result_images["original"] is not None:
+                result_images["result"] = result_images["original"].copy()
+            else:
+                result_images["result"] = processed_img.copy()
+
+            # Ensure vertical lines are drawn on the result image
+            if vertical_left and vertical_right:
+                x1_l, y1_l, x2_l, y2_l = map(int, vertical_left)
+                cv2.line(
+                    result_images["result"], (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3
+                )
+                x1_r, y1_r, x2_r, y2_r = map(int, vertical_right)
+                cv2.line(
+                    result_images["result"], (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3
+                )
+
+        return processed_img, [None], None
 
     def _process_contour_measurements(
         self,
@@ -2453,6 +2761,19 @@ class AnalysisCore(QObject):
             # Calculate and store dimensions
             self._calculate_and_store_dimensions(largest_contour, result_lists, q)
 
+            # Add area diameter to result_images for real-time display
+            if (
+                result_lists
+                and "area_diameter_mm" in result_lists
+                and q < len(result_lists["area_diameter_mm"])
+            ):
+                area_diameter_mm = result_lists["area_diameter_mm"][q]
+                if not math.isnan(area_diameter_mm):
+                    result_images["area_diameter_mm"] = area_diameter_mm
+                    logger.debug(
+                        f"Added area_diameter_mm to result_images: {area_diameter_mm}"
+                    )
+
         # Store visualization images
         result_images["contour"] = vis_img.copy()
         result_images["fallback"] = vis_img.copy()
@@ -2461,6 +2782,9 @@ class AnalysisCore(QObject):
 
     def _add_free_sedimentation_visualization(self, vis_img, largest_contour, cx, cy):
         """Add visualization elements for free sedimentation mode."""
+        # Add 30% transparent green fill for contour area
+        draw_filled_contour(vis_img, largest_contour, color=(0, 255, 0), alpha=0.3)
+
         x, y, w, h = cv2.boundingRect(largest_contour)
         draw_rectangle(vis_img, x, y, w, h, color=(0, 0, 255), thickness=2)
         draw_center_point(
@@ -2471,7 +2795,11 @@ class AnalysisCore(QObject):
         self, vis_img, largest_contour, cx, cy, y1_left, y1_right
     ):
         """Add visualization elements for baseline modes."""
+        # Add 30% transparent green fill for contour area
+        draw_filled_contour(vis_img, largest_contour, color=(0, 255, 0), alpha=0.3)
+
         x, y, w, h = cv2.boundingRect(largest_contour)
+        # Consistent red rectangle around contour (thickness=2)
         draw_rectangle(vis_img, x, y, w, h, color=(0, 0, 255), thickness=2)
 
         if self.analysis_mode == "channel":
@@ -2491,19 +2819,67 @@ class AnalysisCore(QObject):
             highlight_interaction_zone(
                 vis_img, largest_contour, y1_right, zone=10, color=[255, 0, 255]
             )
+        elif self.analysis_mode == "contact_angle":
+            # For contact_angle mode, check if contour touches baseline
+            # If it doesn't touch, baseline and angle lines will be drawn later
+            # Always draw center point with consistent style
+            pass
 
+        # Always draw center point for baseline modes (consistent style)
         draw_center_point(
-            vis_img, cx, cy, color=(0, 0, 255), crosshair_size=30, thickness=2
+            vis_img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickness=2
         )
 
     def _calculate_and_store_dimensions(self, largest_contour, result_lists, q):
-        """Calculate and store contour dimensions."""
+        """Calculate and store contour dimensions, area, and diameter."""
         _, _, current_w_px, current_h_px = cv2.boundingRect(largest_contour)
+
+        # Calculate contour area with fallback for open contours
+        area_px = self._calculate_robust_area(largest_contour)
+
+        # Calculate diameter using D = sqrt(4*A/pi)
+        diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
+
         if current_w_px == 0 or current_h_px == 0:
             self._set_rect_nan(result_lists, q)
+            self._set_area_diameter_nan(result_lists, q)
         else:
             self._set_rect_px(result_lists, q, current_w_px, current_h_px)
             self._set_rect_mm(result_lists, q, current_w_px, current_h_px)
+            self._set_area_diameter_px(result_lists, q, area_px, diameter_px)
+            self._set_area_diameter_mm(result_lists, q, area_px, diameter_px)
+
+    def _calculate_robust_area(self, contour):
+        """Calculate contour area with basic fallback for small areas.
+
+        Args:
+        ----
+            contour: Input contour points
+
+        Returns:
+        -------
+            Area in pixels (float)
+
+        """
+        if contour is None or len(contour) == 0:
+            return 0.0
+
+        try:
+            # Calculate standard contour area
+            area = cv2.contourArea(contour)
+
+            # If area is very small, use bounding rectangle as fallback
+            if area < 10.0:
+                x, y, w, h = cv2.boundingRect(contour)
+                # Use elliptical area estimation: A = π * (w/2) * (h/2)
+                area = math.pi * w * h / 4
+                logger.debug(f"Fallback elliptical area estimation: {area} px²")
+
+            return float(area)
+
+        except Exception as e:
+            logger.warning(f"Error calculating contour area: {e}")
+            return 0.0
 
     def _set_rect_nan(self, result_lists, q):
         """Set rectangle dimension lists to NaN at index q."""
@@ -2512,6 +2888,10 @@ class AnalysisCore(QObject):
             "rect_height_px",
             "rect_width_mm",
             "rect_height_mm",
+            "area_px",
+            "area_mm",
+            "diameter_px",
+            "diameter_mm",
         ]:
             if isinstance(result_lists.get(key), list):
                 result_lists[key][q] = float("nan")
@@ -2536,6 +2916,64 @@ class AnalysisCore(QObject):
             if isinstance(result_lists.get("rect_height_mm"), list):
                 result_lists["rect_height_mm"][q] = float("nan")
 
+    def _set_area_diameter_nan(self, result_lists, q):
+        """Set area and diameter to NaN at index q."""
+        for key in ["area_px", "area_mm", "diameter_px", "diameter_mm"]:
+            if isinstance(result_lists.get(key), list):
+                result_lists[key][q] = float("nan")
+        # Also set area-based diameter to NaN
+        for key in ["area_diameter_px", "area_diameter_mm"]:
+            if key not in result_lists:
+                result_lists[key] = []
+            # Extend list if necessary
+            while len(result_lists[key]) <= q:
+                result_lists[key].append(float("nan"))
+            result_lists[key][q] = float("nan")
+
+    def _set_area_diameter_px(self, result_lists, q, area_px, diameter_px):
+        """Set area and diameter in pixels at index q."""
+        if isinstance(result_lists.get("area_px"), list):
+            result_lists["area_px"][q] = area_px
+        if isinstance(result_lists.get("diameter_px"), list):
+            result_lists["diameter_px"][q] = diameter_px
+        # Set area-based diameter (calculated from detected area)
+        if "area_diameter_px" not in result_lists:
+            result_lists["area_diameter_px"] = []
+        # Extend list if necessary
+        while len(result_lists["area_diameter_px"]) <= q:
+            result_lists["area_diameter_px"].append(float("nan"))
+        result_lists["area_diameter_px"][q] = diameter_px
+
+    def _set_area_diameter_mm(self, result_lists, q, area_px, diameter_px):
+        """Set area and diameter in mm at index q."""
+        if self.pixel is not None and self.pixel > 0:
+            # Area conversion: area_mm = area_px / (pixel^2)
+            area_mm = area_px / (self.pixel * self.pixel)
+            diameter_mm = diameter_px / self.pixel
+
+            if isinstance(result_lists.get("area_mm"), list):
+                result_lists["area_mm"][q] = area_mm
+            if isinstance(result_lists.get("diameter_mm"), list):
+                result_lists["diameter_mm"][q] = diameter_mm
+            # Set area-based diameter (calculated from detected area)
+            if "area_diameter_mm" not in result_lists:
+                result_lists["area_diameter_mm"] = []
+            # Extend list if necessary
+            while len(result_lists["area_diameter_mm"]) <= q:
+                result_lists["area_diameter_mm"].append(float("nan"))
+            result_lists["area_diameter_mm"][q] = diameter_mm
+        else:
+            if isinstance(result_lists.get("area_mm"), list):
+                result_lists["area_mm"][q] = float("nan")
+            if isinstance(result_lists.get("diameter_mm"), list):
+                result_lists["diameter_mm"][q] = float("nan")
+            if "area_diameter_mm" not in result_lists:
+                result_lists["area_diameter_mm"] = []
+            # Extend list if necessary
+            while len(result_lists["area_diameter_mm"]) <= q:
+                result_lists["area_diameter_mm"].append(float("nan"))
+            result_lists["area_diameter_mm"][q] = float("nan")
+
     def _handle_structured_packing_mode(
         self,
         largest_contour,
@@ -2553,8 +2991,9 @@ class AnalysisCore(QObject):
         ):
             return
 
-        # Create structured packing visualization
-        structured_img = vis_img.copy()
+        # Create structured packing visualization - preserve existing contour/center
+        # visualization
+        structured_img = vis_img.copy()  # vis_img already has contour and center point
         baseline_with_vertical = (
             result_images["baseline"].copy()
             if "baseline" in result_images
@@ -2562,7 +3001,7 @@ class AnalysisCore(QObject):
         )
         original_with_vertical = processed_img.copy()
 
-        # Draw vertical lines
+        # Draw vertical lines ON TOP of existing visualization (contour + center point)
         self._draw_vertical_lines(
             vertical_left,
             vertical_right,
@@ -2615,17 +3054,45 @@ class AnalysisCore(QObject):
         original_with_vertical,
     ):
         """Draw vertical lines on multiple image types."""
-        # Draw left vertical line
-        x1_l, y1_l, x2_l, y2_l = vertical_left
+        # Draw left vertical line (ensure integer coordinates)
+        x1_l, y1_l, x2_l, y2_l = map(int, vertical_left)
         cv2.line(structured_img, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
         cv2.line(baseline_with_vertical, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
         cv2.line(original_with_vertical, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
 
-        # Draw right vertical line
-        x1_r, y1_r, x2_r, y2_r = vertical_right
+        # Draw right vertical line (ensure integer coordinates)
+        x1_r, y1_r, x2_r, y2_r = map(int, vertical_right)
         cv2.line(structured_img, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
         cv2.line(baseline_with_vertical, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
         cv2.line(original_with_vertical, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
+
+    def _draw_vertical_lines_on_all_result_images(
+        self, vertical_left, vertical_right, result_images
+    ):
+        """Draw vertical lines on ALL result images to ensure they're always visible."""
+        if not vertical_left or not vertical_right:
+            return
+
+        # Draw on all available images in result_images,
+        # including those created by contour detection
+        for image_key in ["original", "baseline", "contour", "result", "thresh"]:
+            if image_key in result_images and result_images[image_key] is not None:
+                img = result_images[image_key]
+
+                # Skip thresh image since it's binary
+                if image_key == "thresh":
+                    continue
+
+                # Ensure we have a color image for line drawing
+                if len(img.shape) == 2:  # Grayscale
+                    img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+                    result_images[image_key] = img
+
+                # Draw vertical lines (ensure integer coordinates)
+                x1_l, y1_l, x2_l, y2_l = map(int, vertical_left)
+                cv2.line(img, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
+                x1_r, y1_r, x2_r, y2_r = map(int, vertical_right)
+                cv2.line(img, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
 
     def _process_intersection_and_angles(
         self,
@@ -2684,34 +3151,41 @@ class AnalysisCore(QObject):
         self, processed_img, largest_contour, cx, cy, result_images
     ):
         """Handle cases with insufficient intersection points."""
-        # Create a comprehensive result image for free sedimentation mode
+        # Create a comprehensive result image
         result_image = processed_img.copy()
+
+        # Draw filled contour area (30% transparent green)
+        draw_filled_contour(result_image, largest_contour, color=(0, 255, 0), alpha=0.3)
+
+        # Draw contour outline (consistent green, thickness=2)
         cv2.drawContours(result_image, [largest_contour], -1, (0, 255, 0), 2)
 
         if cx != 0 or cy != 0:
+            # Draw bounding rectangle (consistent red, thickness=2)
             x, y, w, h = cv2.boundingRect(largest_contour)
             cv2.rectangle(result_image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            cv2.circle(result_image, (cx, cy), 8, (0, 0, 255), -1)
 
-            # Add crosshair for better visibility
-            crosshair_size = 20
-            cv2.line(
-                result_image,
-                (cx - crosshair_size, cy),
-                (cx + crosshair_size, cy),
-                (0, 0, 255),
-                2,
-            )
-            cv2.line(
-                result_image,
-                (cx, cy - crosshair_size),
-                (cx, cy + crosshair_size),
-                (0, 0, 255),
-                2,
+            # Draw center point (consistent style: red, size=20, thickness=2)
+            draw_center_point(
+                result_image, cx, cy, color=(0, 0, 255), crosshair_size=20, thickness=2
             )
 
         result_images["result"] = result_image
         result_images["fallback"] = result_image.copy()
+
+        # Add vertical lines for structured_packing mode
+        if self.analysis_mode == "structured_packing":
+            vertical_left = result_images.get("vertical_left")
+            vertical_right = result_images.get("vertical_right")
+            if vertical_left and vertical_right:
+                x1_l, y1_l, x2_l, y2_l = map(int, vertical_left)
+                cv2.line(result_image, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
+                x1_r, y1_r, x2_r, y2_r = map(int, vertical_right)
+                cv2.line(result_image, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
+                # Update both result images with vertical lines
+                result_images["result"] = result_image
+                result_images["fallback"] = result_image.copy()
+
         return {"left": float("NaN"), "right": float("NaN")}
 
     def _calculate_final_contact_angles_and_result(
@@ -2973,19 +3447,19 @@ class AnalysisCore(QObject):
                     (0, int(y1_left)),
                     (result_image.shape[1], int(y1_right)),
                     (0, 0, 255),
-                    2,
+                    3,
                 )
 
-        # Draw vertical lines for structured packing mode
+        # Draw vertical lines for structured packing mode (consistent thickness=3)
         if (
             self.analysis_mode == "structured_packing"
             and vertical_left
             and vertical_right
         ):
-            x1_l, y1_l, x2_l, y2_l = vertical_left
-            cv2.line(result_image, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 2)
-            x1_r, y1_r, x2_r, y2_r = vertical_right
-            cv2.line(result_image, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 2)
+            x1_l, y1_l, x2_l, y2_l = map(int, vertical_left)
+            cv2.line(result_image, (x1_l, y1_l), (x2_l, y2_l), (0, 0, 255), 3)
+            x1_r, y1_r, x2_r, y2_r = map(int, vertical_right)
+            cv2.line(result_image, (x1_r, y1_r), (x2_r, y2_r), (0, 0, 255), 3)
 
         # Draw intersection points and contact angle lines
         self._draw_intersection_points_and_angles(
@@ -2996,13 +3470,38 @@ class AnalysisCore(QObject):
             receding_contact_angles,
         )
 
-        # Draw contour outline
-        cv2.drawContours(result_image, [largest_contour], -1, (0, 255, 0), 1)
+        # Draw filled contour area (30% transparent green)
+        draw_filled_contour(result_image, largest_contour, color=(0, 255, 0), alpha=0.3)
 
-        # Draw bounding rectangle around the contour on the result image
+        # Draw contour outline (consistent green color, thickness=2)
+        cv2.drawContours(result_image, [largest_contour], -1, (0, 255, 0), 2)
+
+        # Draw bounding rectangle around the contour (consistent red color, thickness=2)
         if largest_contour is not None:
             x, y, w, h = cv2.boundingRect(largest_contour)
             draw_rectangle(result_image, x, y, w, h, color=(0, 0, 255), thickness=2)
+
+            # Draw center point for appropriate modes
+            modes_with_center = [
+                "structured_packing",
+                "contact_angle",
+                "free_sedimentation",
+            ]
+            if self.analysis_mode in modes_with_center:
+                # Calculate center using moments
+                moment = cv2.moments(largest_contour)
+                if moment["m00"] != 0:
+                    cx = int(moment["m10"] / moment["m00"])
+                    cy = int(moment["m01"] / moment["m00"])
+                    # Consistent center point style (red color, size=20, thickness=2)
+                    draw_center_point(
+                        result_image,
+                        cx,
+                        cy,
+                        color=(0, 0, 255),
+                        crosshair_size=20,
+                        thickness=2,
+                    )
 
         # Store the result image
         result_images["result"] = result_image
@@ -3083,6 +3582,10 @@ class AnalysisCore(QObject):
         """Create a basic fallback result image if none was created."""
         fallback_result = result_images.get("original").copy()
         if largest_contour is not None:
+            # Draw filled contour area (30% transparent green)
+            draw_filled_contour(
+                fallback_result, largest_contour, color=(0, 255, 0), alpha=0.3
+            )
             cv2.drawContours(fallback_result, [largest_contour], -1, (0, 255, 0), 2)
             moment = cv2.moments(largest_contour)
             if moment["m00"] != 0:

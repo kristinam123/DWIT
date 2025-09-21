@@ -32,17 +32,21 @@ Droplet Wall Interaction Tool is a research-oriented, Python-based platform for 
 # Statement of need
 
 Automated droplet experimentation and qualitative image analysis are essential in surface science, microfluidics, and materials research. Existing tools often lack integration, reproducibility, or extensibility. Droplet Wall Interaction Tool addresses these gaps by providing:
-- Robust batch image analysis, including contact angle measurement, and velocity analysis.
+- Robust batch image analysis, including contact angle measurement, droplet diameter calculation, and velocity analysis.
+- Automated droplet characterization using equivalent diameter formula (D=√(4A/π)) and area measurements.
+- Visual area representation through transparent overlays for immediate visual feedback.
 - Visual ROI selection and baseline adjustment with both numeric and graphical controls.
 - Visual and numeric interfaces for region-of-interest (ROI) selection and baseline adjustment.
 - Real-time logging and status indicators for transparency and troubleshooting.
+- Robust handling of open or incomplete contours through conservative estimation methods.
 
 Droplet Wall Interaction Tool is designed for researchers who require a flexible, reproducible, and extensible platform for laboratory automation and qualitative analysis.
 
 # Features and implementation
 
 ## Key Features
-- **Analysis Tab:** Batch image processing, contact angle measurement.
+- **Analysis Tab:** Batch image processing, contact angle measurement, droplet area and diameter calculation.
+- **Droplet Measurements:** Automatic calculation of droplet area and equivalent diameter using D=√(4A/π) formula.
 - **Visual ROI & Baseline:** Graphical and numeric interfaces for ROI selection and baseline adjustment.
 - **Batch Processing:** Analysis of multiple datasets with progress visualization.
 - **Velocity Analysis:** Advanced tools for droplet dynamics and time-series analysis.

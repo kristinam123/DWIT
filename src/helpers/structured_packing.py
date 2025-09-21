@@ -62,13 +62,14 @@ def find_vertical_lines(image):
         rightmost_x = rightmost[0]
 
         # Add offset - SUBTRACT 1 pixel from left edge (move outside)
-        # and ADD 1 pixel to right edge
-        left_edge_x = leftmost_x - 1  # 1 pixel to the left of the leftmost point
-        right_edge_x = rightmost_x + 1  # 1 pixel to the right of the rightmost point
+        # and ADD 1 pixel to right edge, but keep within image bounds
+        left_edge_x = max(0, leftmost_x - 1)  # Ensure >= 0
+        right_edge_x = min(image.shape[1] - 1, rightmost_x + 1)  # Ensure < width
 
         # The vertical lines go from top to bottom of the image
-        left_line = (left_edge_x, 0, left_edge_x, image.shape[0])
-        right_line = (right_edge_x, 0, right_edge_x, image.shape[0])
+        # Convert to regular Python integers to avoid numpy type issues
+        left_line = (int(left_edge_x), 0, int(left_edge_x), image.shape[0])
+        right_line = (int(right_edge_x), 0, int(right_edge_x), image.shape[0])
 
         logger.debug(
             f"Successfully found vertical lines: left={left_line}, right={right_line}"

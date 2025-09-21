@@ -33,7 +33,8 @@
 <a name="features"></a>
 ## Features
 
-- 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement.
+- 📊 **Analysis Tab:** Enables batch image processing, contact angle measurement and diameter calculation.
+- 🔵 **Droplet Measurements:** Automatically calculates droplet area and equivalent diameter using D=√(4A/π) formula.
 - 🖼️ **Visual ROI & Baseline:** Provides both graphical and numeric interfaces for region selection and baseline adjustment.
 - 🗂️ **Batch Processing:** Supports analysis of multiple datasets with progress visualization.
 - 📈 **Velocity Analysis:** Tools for droplet dynamics and time-series analysis.
@@ -99,6 +100,21 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
 6. Outputs: per-frame overlays are saved under `<your_folder>/`; a raw-results Excel file is saved in the same folder with the fixed name `results_raw.xlsx`.
+
+### Data Outputs
+
+The analysis results are saved to `results_raw.xlsx` with the following columns in order:
+- **Time**: Frame timestamp or sequence number
+- **Area [px]**: Droplet area in pixels
+- **Area [mm]**: Droplet area in square millimeters (requires calibration)
+- **Diameter [px]**: Equivalent diameter in pixels, calculated as D=√(4A/π)
+- **Diameter [mm]**: Equivalent diameter in millimeters (requires calibration)
+- **Contour width/height [px/mm]**: Bounding rectangle dimensions
+- **Center coordinates [px/mm]**: Droplet center positions
+- **Velocity**: Motion analysis results (when applicable)
+- **Contact angles**: Angular measurements (in contact_angle mode)
+
+**Note on open contours**: For incomplete or open contour shapes (edge case), the tool uses a conservative area estimation based on the bounding rectangle to ensure robust processing.
 
 ### Logging & Troubleshooting
 

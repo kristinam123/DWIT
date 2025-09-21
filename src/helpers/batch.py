@@ -274,9 +274,7 @@ class BatchProcessingWorker(QObject):
                         progress,
                         *args,
                     ),
-                    save_files=(
-                        True and not self.should_stop and not self.should_skip_current
-                    ),
+                    save_files=(True and not self.should_stop),
                     preview_middle=False,
                     use_first_as_background=False,
                 )
@@ -339,11 +337,6 @@ class BatchProcessingWorker(QObject):
         self.should_stop = True
         self.is_paused = False  # Also clear pause state when stopping
         logger.info("Batch processing stop requested")
-
-    def skip_current_folder(self):
-        """Request skipping the current folder after current image finishes."""
-        self.should_skip_current = True
-        logger.info("Skip current folder requested")
 
     def _folder_progress_callback(
         self, folder_index, current_folder, total_folders, folder_path, progress, *args
