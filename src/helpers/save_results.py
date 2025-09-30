@@ -127,12 +127,6 @@ def _extract_data_from_results(result_lists, num_times):
             num_times,
         ),
         "velocities": ensure_list(result_lists["velocity"], num_times),
-        "area_diameter_px": ensure_list(
-            result_lists.get("area_diameter_px", [float("nan")] * num_times), num_times
-        ),
-        "area_diameter_mm": ensure_list(
-            result_lists.get("area_diameter_mm", [float("nan")] * num_times), num_times
-        ),
         "centers": ensure_list(result_lists["center_points_px"], num_times),
         "centers_mm": ensure_list(result_lists["center_points_mm"], num_times),
         "contact_line_px": ensure_list(result_lists["contact_line_px"], num_times),
@@ -285,8 +279,8 @@ def _create_raw_data_dict(times, extracted_data, coordinates, availability):
         "Time": times,
         "Area [px]": extracted_data["area_px"],
         "Area [mm]": extracted_data["area_mm"],
-        "Diameter [px]": extracted_data["diameter_px"],
-        "Diameter [mm]": extracted_data["diameter_mm"],
+        "Area diameter [px]": extracted_data["diameter_px"],
+        "Area diameter [mm]": extracted_data["diameter_mm"],
         "Contour width [px]": extracted_data["rect_width_px"],
         "Contour height [px]": extracted_data["rect_height_px"],
         "Contour width [mm]": extracted_data["rect_width_mm"],
@@ -298,8 +292,6 @@ def _create_raw_data_dict(times, extracted_data, coordinates, availability):
         "X of center [mm]": coordinates["centers_x_mm"],
         "Y of center [mm]": coordinates["centers_y_mm"],
         "Velocity": extracted_data["velocities"],
-        "Area diameter [px]": extracted_data["area_diameter_px"],
-        "Area diameter [mm]": extracted_data["area_diameter_mm"],
         "Discontinuous Velocity [px/s]": extracted_data["discontinuous_velocity_px_s"],
         "Discontinuous Velocity [mm/s]": extracted_data["discontinuous_velocity_mm_s"],
     }

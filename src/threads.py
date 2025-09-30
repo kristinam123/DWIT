@@ -161,8 +161,21 @@ class AnalysisThread(QThread):
     def stop(self):
         """Stop processing after the current image is complete."""
         logger.info("AnalysisThread stop requested")
-        self.should_stop = True
-        self.is_paused = False  # Clear pause state when stopping
+        # Wake any waiting pause condition so the thread can break out
+        # of a paused wait and observe should_stop
+        try:
+            self._pause_mutex.lock()
+            self.should_stop = True
+            self.is_paused = False  # Clear pause state when stopping
+            try:
+                self._pause_condition.wakeAll()
+            except Exception:
+                pass
+        finally:
+            try:
+                self._pause_mutex.unlock()
+            except Exception:
+                pass
 
     def _progress_callback(
         self,

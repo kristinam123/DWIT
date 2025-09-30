@@ -9,6 +9,7 @@ import re
 import cv2
 import numpy as np
 
+from src.utilities.image import safe_imread
 from src.utilities.logging_manager import get_logger
 
 # Setup logger for this module
@@ -38,7 +39,7 @@ def start_run(img_names, q, save_files, folder_path):
     )
 
     # Load the image directly from its full path
-    src = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    src = safe_imread(image_path, cv2.IMREAD_COLOR)
     if src is None:
         logger.error(f"OpenCV failed to load image: {image_path}")
         raise ValueError(f"Failed to load image: {image_path}")
@@ -176,7 +177,7 @@ def initiate_run(files, save_files, folder_path, fps):
 
         first_image_path = os.path.join(folder_path, img_names[0])
 
-        background = cv2.imread(first_image_path, cv2.IMREAD_COLOR)
+        background = safe_imread(first_image_path, cv2.IMREAD_COLOR)
 
         if background is None:
             logger.error(f"Failed to load background image: {first_image_path}")
@@ -190,7 +191,7 @@ def initiate_run(files, save_files, folder_path, fps):
 
         background_path = os.path.join(folder_path, img_name_0)
 
-        background = cv2.imread(background_path, cv2.IMREAD_COLOR)
+        background = safe_imread(background_path, cv2.IMREAD_COLOR)
 
         if background is None:
             logger.error(f"Failed to load background image: {background_path}")

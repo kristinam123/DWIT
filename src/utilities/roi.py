@@ -8,7 +8,7 @@ from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QColor, QCursor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout
 
-from src.utilities.image import rotate_image
+from src.utilities.image import rotate_image, safe_imread
 from src.utilities.logging_manager import get_logger
 
 # Setup logger for this module
@@ -235,7 +235,7 @@ class ROISelector(QDialog):
         """Load the image, apply rotation, and auto-size the dialog."""
         try:
             # Load the original image
-            self.original_image = cv2.imread(self.image_path)
+            self.original_image = safe_imread(self.image_path)
             if self.original_image is None:
                 logger.error(f"Failed to load image from path: {self.image_path}")
                 return

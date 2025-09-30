@@ -16,6 +16,59 @@ from src.utilities.logging_manager import get_logger
 logger = get_logger(__name__)
 
 
+def safe_imread(path: str, flags=cv2.IMREAD_COLOR):
+    """Robust image loader that handles Unicode paths on Windows.
+
+    Tries cv2.imread first. If that returns None (which can happen when
+    the underlying OpenCV build has trouble with Unicode paths on Windows),
+    falls back to reading the file bytes and decoding with cv2.imdecode.
+    """
+    try:
+        img = cv2.imread(path, flags)
+        if img is not None:
+            return img
+    except Exception:
+        # Continue to fallback
+        logger.debug("cv2.imread raised exception for path: %s", path)
+
+    # Fallback: read raw bytes and decode
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        arr = np.frombuffer(data, dtype=np.uint8)
+        img = cv2.imdecode(arr, flags)
+        return img
+    except Exception as e:
+        logger.debug("safe_imread fallback failed for %s: %s", path, e)
+
+        # Add extra diagnostics to help debug Unicode/path issues on Windows
+        try:
+            exists = os.path.exists(path)
+            isfile = os.path.isfile(path)
+            logger.debug(
+                "safe_imread diagnostics: exists=%s, isfile=%s", exists, isfile
+            )
+            parent = os.path.dirname(path) or "."
+            if os.path.isdir(parent):
+                try:
+                    entries = os.listdir(parent)
+                    # Log first 20 entries with repr to show encoding differences
+                    entries_sample = [repr(e) for e in entries[:20]]
+                    logger.debug(
+                        "Directory listing for %s (first %d): %s",
+                        parent,
+                        min(20, len(entries)),
+                        entries_sample,
+                    )
+                except Exception as le:
+                    logger.debug("Failed to list parent directory %s: %s", parent, le)
+        except Exception:
+            # Best-effort diagnostics only
+            pass
+
+        return None
+
+
 def create_background_image(
     image_paths,
     use_first_as_background=False,
@@ -100,7 +153,7 @@ def _create_simple_background(image_path, rotate_angle, crop_params):
     logger.debug("Using first image as background (simple approach)")
 
     try:
-        bg_img = cv2.imread(image_path)
+        bg_img = safe_imread(image_path)
         if bg_img is None:
             logger.error(f"Failed to load first image: {image_path}")
             return None
@@ -163,7 +216,7 @@ def _load_and_preprocess_samples(
 
     for idx in sample_indices:
         try:
-            img = cv2.imread(image_paths[idx])
+            img = safe_imread(image_paths[idx])
             if img is None:
                 logger.warning(
                     f"Failed to load image at index {idx}: {image_paths[idx]}"

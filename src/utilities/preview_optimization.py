@@ -12,7 +12,12 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from src.utilities.image import create_background_image, crop_image, rotate_image
+from src.utilities.image import (
+    create_background_image,
+    crop_image,
+    rotate_image,
+    safe_imread,
+)
 from src.utilities.logging_manager import get_logger
 
 logger = get_logger(__name__)
@@ -123,7 +128,7 @@ class OptimizedPreviewGenerator(QObject):
             middle_image = image_files[middle_idx]
 
             # Get image dimensions from middle image
-            temp_img = cv2.imread(middle_image)
+            temp_img = safe_imread(middle_image)
             original_shape = temp_img.shape if temp_img is not None else (480, 640, 3)
 
             return {
@@ -152,7 +157,7 @@ class OptimizedPreviewGenerator(QObject):
             return None
 
         try:
-            image = cv2.imread(metadata["middle_image"])
+            image = safe_imread(metadata["middle_image"])
             if image is None:
                 return None
 

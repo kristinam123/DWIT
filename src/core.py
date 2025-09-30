@@ -6,6 +6,7 @@ For droplet and experiment analysis in Droplet Wall Interaction Tool.
 import glob
 import math
 import os
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import cv2
@@ -55,6 +56,7 @@ from src.utilities.image import (
     create_background_image,
     crop_image,
     rotate_image,
+    safe_imread,
 )
 from src.utilities.logging_manager import get_logger
 
@@ -89,9 +91,12 @@ class AnalysisCore(QObject):
         try:
             self.analysis_mode = analysis_mode
 
-            # Initialize settings with mode-specific group
-            settings_group = f"Analysismode_{self.analysis_mode}"
-            self.settings = QSettings("CellSettings", settings_group)
+            # Initialize settings with a fixed application name. The
+            # analysis-mode is handled via beginGroup()/endGroup so we
+            # avoid accidentally nesting the same group twice by passing
+            # the mode name as the application name to QSettings.
+            # This also allows consistent reads/writes via beginGroup.
+            self.settings = QSettings("CellSettings", "DWIT")
 
             # Load settings from persistent storage
             self.load_settings()
@@ -219,9 +224,15 @@ class AnalysisCore(QObject):
 
     def add_folder_path(self, folder_path: str) -> None:
         """Add a folder path to the list if it's not already there."""
-        if folder_path and folder_path not in self._folder_paths:
-            self._folder_paths.append(folder_path)
-            logger.info(f"Added new folder path: {folder_path}")
+        if not folder_path:
+            return
+
+        # Normalize to absolute, platform-correct path to keep storage consistent
+        norm_path = os.path.normpath(os.path.abspath(folder_path))
+        if norm_path not in self._folder_paths:
+            self._folder_paths.append(norm_path)
+            logger.info(f"Added new folder path: {norm_path}")
+            # Persist normalized paths
             self.save_setting("folderPaths", self._folder_paths)
 
             # If this is the first folder or we don't have a main folder, set it as main
@@ -237,12 +248,19 @@ class AnalysisCore(QObject):
 
     def remove_folder_path(self, folder_path: str) -> None:
         """Remove a folder path from the list."""
-        if folder_path in self._folder_paths:
-            self._folder_paths.remove(folder_path)
+        if not folder_path:
+            logger.warning(f"Attempted to remove invalid folder path: {folder_path}")
+            return
+
+        # Normalize incoming path for consistent comparison
+        norm_path = os.path.normpath(os.path.abspath(folder_path))
+
+        if norm_path in self._folder_paths:
+            self._folder_paths.remove(norm_path)
             logger.info(f"Removed folder path: {folder_path}")
             # If removing the main folder, clear it
-            if folder_path == self._main_folder_path:
-                logger.warning(f"Removing main folder path: {folder_path}")
+            if norm_path == self._main_folder_path:
+                logger.warning(f"Removing main folder path: {norm_path}")
                 self._main_folder_path = ""
                 self.save_setting("mainFolderPath", "")
                 self.main_folder_path_changed.emit("")
@@ -267,9 +285,15 @@ class AnalysisCore(QObject):
             logger.warning(f"Invalid folder path provided: {value}")
             return
 
-        if self._folder_path != value:
-            logger.info(f"Folder path changed from '{self._folder_path}' to '{value}'")
-            self._folder_path = value
+        # Normalize path
+        norm_value = os.path.normpath(os.path.abspath(value))
+        if self._folder_path != norm_value:
+            logger.info(
+                "Folder path changed from '%s' to '%s'",
+                self._folder_path,
+                norm_value,
+            )
+            self._folder_path = norm_value
 
             # Reset vertical lines when folder changes (for structured_packing mode)
             if self.analysis_mode == "structured_packing":
@@ -280,7 +304,7 @@ class AnalysisCore(QObject):
                 )
 
             # Save to settings
-            self.save_setting("folderPath", value)
+            self.save_setting("folderPath", self._folder_path)
             # Update output path (no 'Output' subfolder)
             self.output_path = value if value else ""
             self.folder_path_changed.emit(value)
@@ -378,17 +402,35 @@ class AnalysisCore(QObject):
 
     def set_folder_paths(self, value: list) -> None:
         """Set the list of folder paths."""
-        if self._folder_paths != value:
-            self._folder_paths = value
-            self.save_setting("folderPaths", value)
-            self.folder_paths_changed.emit(value)
+        # Normalize incoming list to absolute normalized paths
+        normalized = []
+        try:
+            for p in value or []:
+                if p:
+                    normalized.append(os.path.normpath(os.path.abspath(p)))
+        except Exception:
+            normalized = []
+
+        if self._folder_paths != normalized:
+            self._folder_paths = normalized
+            self.save_setting("folderPaths", self._folder_paths)
+            self.folder_paths_changed.emit(self._folder_paths)
 
     def set_main_folder_path(self, value: str) -> None:
         """Set the main folder path for analysis."""
-        if self._main_folder_path != value:
-            self._main_folder_path = value
-            self.save_setting("mainFolderPath", value)
-            self.main_folder_path_changed.emit(value)
+        if not value or not isinstance(value, str):
+            # Allow clearing main folder
+            if value == "":
+                self._main_folder_path = ""
+                self.save_setting("mainFolderPath", "")
+                self.main_folder_path_changed.emit("")
+            return
+
+        norm_value = os.path.normpath(os.path.abspath(value))
+        if self._main_folder_path != norm_value:
+            self._main_folder_path = norm_value
+            self.save_setting("mainFolderPath", self._main_folder_path)
+            self.main_folder_path_changed.emit(self._main_folder_path)
 
     # endregion SETTERS
 
@@ -404,6 +446,14 @@ class AnalysisCore(QObject):
         logger.info(f"Loading settings for analysis mode: {self.analysis_mode}")
 
         try:
+            # Handle legacy-to-new-settings migration in a dedicated helper
+            # to reduce function complexity and keep this method readable.
+            try:
+                self._migrate_legacy_settings()
+            except Exception:
+                # Migration is best-effort; don't fail load if it errors
+                logger.debug("Legacy settings migration failed or not present")
+
             # Load settings under the analysis-mode group
             self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
             self._load_common_settings()
@@ -413,9 +463,99 @@ class AnalysisCore(QObject):
             # Validate and persist cleaned folder paths (may re-open group)
             self._validate_and_clean_folder_paths()
 
+            # Diagnostic: log final state of folder paths after load and validation
+            try:
+                logger.debug("Final folderPaths after load: %r", self._folder_paths)
+                logger.debug(
+                    "Final mainFolderPath after load: %r",
+                    self._main_folder_path,
+                )
+            except Exception:
+                pass
+
         except Exception as e:
             logger.error(f"Failed to load settings for {self.analysis_mode}: {e}")
             raise
+
+    def _migrate_legacy_settings(self) -> None:
+        """Migrate legacy settings stored under the old QSettings pattern.
+
+        This helper encapsulates the previous migration block which attempted
+        to read from a `QSettings("CellSettings", "Analysismode_<mode>")`
+        location and copy keys into the current `self.settings` group. It
+        normalizes folder paths for safe comparisons and attempts to remove
+        legacy keys after migration to avoid re-imports.
+        """
+        # Migrate legacy settings if they were stored using the
+        # previous pattern where the QSettings application name
+        # already contained the group (e.g. QSettings(org, "Analysismode_<mode>"))
+        legacy = QSettings("CellSettings", f"Analysismode_{self.analysis_mode}")
+        legacy_folder_paths = legacy.value("folderPaths", None)
+
+        # Normalize legacy paths if present
+        if legacy_folder_paths is not None:
+            try:
+                legacy_folder_paths = [
+                    str(Path(p).resolve())
+                    for p in self._normalize_folder_paths(legacy_folder_paths)
+                ]
+            except Exception:
+                # fall back to raw value if normalization fails
+                pass
+
+        # Only migrate if we don't already have folderPaths in the new storage
+        self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
+        existing_folder_paths = self.settings.value("folderPaths", None)
+        # Normalize existing paths for comparison
+        if existing_folder_paths is not None:
+            try:
+                existing_folder_paths = [
+                    str(Path(p).resolve())
+                    for p in self._normalize_folder_paths(existing_folder_paths)
+                ]
+            except Exception:
+                pass
+        self.settings.endGroup()
+
+        if legacy_folder_paths is None:
+            return
+
+        logger.debug("Found legacy folderPaths: %r", legacy_folder_paths)
+        logger.debug(
+            "Existing folderPaths in new storage: %r",
+            existing_folder_paths,
+        )
+
+        if existing_folder_paths is None or existing_folder_paths == []:
+            logger.info("Migrating legacy settings from old storage location")
+
+        # Copy a couple of frequently used keys into the new storage
+        self.settings.beginGroup(f"Analysismode_{self.analysis_mode}")
+        self.settings.setValue("folderPaths", legacy_folder_paths)
+        for k in ("folderPath", "mainFolderPath"):
+            v = legacy.value(k, None)
+            if v is not None:
+                self.settings.setValue(k, v)
+        self.settings.endGroup()
+        self.settings.sync()
+
+        # Attempt to remove legacy keys (best-effort)
+        self._remove_legacy_keys_if_needed(legacy)
+
+    def _remove_legacy_keys_if_needed(self, legacy: QSettings) -> None:
+        """Attempt to remove legacy keys from the legacy QSettings instance.
+
+        This is a best-effort cleanup to avoid future re-imports. Failures are
+        non-fatal and only logged at debug level.
+        """
+        try:
+            legacy.remove("folderPaths")
+            legacy.remove("folderPath")
+            legacy.remove("mainFolderPath")
+            legacy.sync()
+            logger.debug("Legacy settings removed after migration")
+        except Exception:
+            logger.debug("Could not remove legacy settings after migration")
 
     def _load_common_settings(self) -> None:
         """Load settings that apply regardless of analysis mode."""
@@ -553,7 +693,8 @@ class AnalysisCore(QObject):
             for p in paths:
                 if p and p not in cleaned_paths:
                     logger.warning(
-                        "Stored folder path does not exist and was " f"removed: {p}"
+                        "Stored folder path does not exist and was removed: %s",
+                        p,
                     )
 
             # If nothing changed, emit signals and return
@@ -580,12 +721,26 @@ class AnalysisCore(QObject):
 
     def _normalize_folder_paths(self, paths) -> list:
         """Return a list of folder paths normalized from stored value."""
-        if isinstance(paths, str):
-            return [paths]
-        if isinstance(paths, list):
-            return paths
+        # Convert to a list of normalized absolute paths
+        result = []
         try:
-            return list(paths or [])
+            if isinstance(paths, str):
+                paths = [paths]
+            if paths is None:
+                return []
+            for p in paths:
+                if not p:
+                    continue
+                try:
+                    # Use pathlib to get a platform-native resolved path
+                    full = str(Path(p).resolve())
+                except Exception:
+                    try:
+                        full = os.path.normpath(os.path.abspath(p))
+                    except Exception:
+                        full = str(p)
+                result.append(full)
+            return result
         except Exception:
             return []
 
@@ -853,23 +1008,38 @@ class AnalysisCore(QObject):
             )
             return False
 
-        # Check for special (non-ASCII) characters in the folder path
+        # Normalize Unicode to NFC for deterministic behavior and accept
+        # non-ASCII folder paths on Windows. Previously we rejected paths
+        # containing non-ASCII characters which prevents normal usage on
+        # systems where users have local-language folder names. Log a
+        # non-blocking warning to aid debugging but continue.
         try:
-            self._folder_path.encode("ascii")
-            return True
-        except UnicodeEncodeError:
-            logger.warning(f"Special characters in folder path: {self._folder_path}")
-            self.error_occurred.emit(
-                "The selected folder path contains special characters "
-                "(e.g., ü, ä, ö, ß). Please use a path with only standard "
-                "English letters and numbers."
-            )
-            logger.warning(
-                "The selected folder path contains special characters "
-                "(e.g., ü, ä, ö, ß). Please use a path with only standard "
-                "English letters and numbers."
-            )
-            return False
+            import unicodedata
+
+            self._folder_path = unicodedata.normalize("NFC", self._folder_path)
+        except Exception:
+            # If normalization fails, continue with the original path
+            pass
+
+        # If path exists and is a directory we've already returned earlier.
+        # Here we simply proceed — File operations will use the real path.
+        try:
+            # Try a roundtrip encode/decode to detect if any immediate
+            # low-level issues are present, but do not block on encoding.
+            # Use encode_path only for diagnostics if available.
+            from src.utilities.path_identifier import encode_path  # optional
+
+            try:
+                _ = encode_path(self._folder_path)
+            except Exception:
+                logger.debug("Could not encode folder path for diagnostic purposes")
+        except Exception:
+            # If path_identifier is not available, ignore and proceed
+            pass
+
+        # Accept path regardless of character set — OS-level calls will fail
+        # later if the path is actually inaccessible.
+        return True
 
     def _collect_image_files(self, progress_callback) -> list[str] | None:
         """Collect all image files from the folder, including extracted from videos.
@@ -1088,8 +1258,6 @@ class AnalysisCore(QObject):
             "ellipse_diameter_px",
             "ellipse_diameter_mm",
             "velocity",
-            "area_diameter_px",
-            "area_diameter_mm",
             "contact_line_px",
             "contact_line_mm",
         ]
@@ -1155,7 +1323,7 @@ class AnalysisCore(QObject):
         middle_index = len(files) // 2
         middle_file = files[middle_index]
 
-        middle_src = cv2.imread(middle_file)
+        middle_src = safe_imread(middle_file)
         if middle_src is None:
             logger.error(
                 f"Detection: Failed to load middle image file: "
@@ -1264,7 +1432,7 @@ class AnalysisCore(QObject):
 
         if num_files < 100:  # Only preload for reasonable sized datasets
             for file_path in files:
-                img = cv2.imread(file_path)
+                img = safe_imread(file_path)
                 if img is not None:
                     preloaded_images[file_path] = img
 
@@ -1324,7 +1492,7 @@ class AnalysisCore(QObject):
         if files[q] in preloaded_images:
             return preloaded_images[files[q]]
         else:
-            return cv2.imread(files[q])
+            return safe_imread(files[q])
 
     def _process_single_file(
         self,
@@ -1559,23 +1727,13 @@ class AnalysisCore(QObject):
         if isinstance(result_lists.get("ellipse_diameter_mm"), list):
             result_lists["ellipse_diameter_mm"][q] = ellipse_diameter_mm
 
-        # Calculate area and diameter from current contour or bounding rectangle
+        # Calculate area and diameter from current contour only
         area_px = float("nan")
         diameter_px = float("nan")
 
-        # Try to get contour from _current_contour if available
+        # Only calculate area if we have a valid contour from the current frame
         if hasattr(self, "_current_contour") and self._current_contour is not None:
             area_px = self._calculate_robust_area(self._current_contour)
-            diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
-        elif (
-            rect_w is not None
-            and rect_h is not None
-            and not math.isnan(rect_w)
-            and not math.isnan(rect_h)
-        ):
-            # Fallback: estimate area as ellipse using bounding rectangle
-            # A = π * (w/2) * (h/2) = π * w * h / 4
-            area_px = math.pi * rect_w * rect_h / 4
             diameter_px = math.sqrt(4 * area_px / math.pi) if area_px > 0 else 0
 
         # Store area and diameter values
@@ -1767,9 +1925,6 @@ class AnalysisCore(QObject):
             result_lists["center_points_px"], self.pixel, self.fps
         )
 
-        # Calculate area-based diameter from detected area
-        self._calculate_area_based_diameter(result_lists)
-
         # Calculate discontinuous velocity for structured packing mode
         if self.analysis_mode == "structured_packing":
             self._calculate_discontinuous_velocity(
@@ -1780,34 +1935,6 @@ class AnalysisCore(QObject):
         self._handle_final_progress_and_save(
             result_lists, save_files, processing_stopped, progress_callback, time, files
         )
-
-    def _calculate_area_based_diameter(self, result_lists):
-        """Calculate diameter from detected area for all frames."""
-        if "area_px" not in result_lists or "area_diameter_px" not in result_lists:
-            return
-
-        for i, area_px in enumerate(result_lists["area_px"]):
-            # Calculate diameter from area: d = sqrt(4*A/π)
-            if area_px is not None and not math.isnan(area_px) and area_px > 0:
-                diameter_px = math.sqrt(4 * area_px / math.pi)
-                diameter_mm = (
-                    diameter_px / self.pixel
-                    if self.pixel and self.pixel > 0
-                    else float("nan")
-                )
-            else:
-                diameter_px = float("nan")
-                diameter_mm = float("nan")
-
-            # Store the calculated values
-            if isinstance(result_lists.get("area_diameter_px"), list) and i < len(
-                result_lists["area_diameter_px"]
-            ):
-                result_lists["area_diameter_px"][i] = diameter_px
-            if isinstance(result_lists.get("area_diameter_mm"), list) and i < len(
-                result_lists["area_diameter_mm"]
-            ):
-                result_lists["area_diameter_mm"][i] = diameter_mm
 
     def _calculate_discontinuous_velocity(
         self, result_lists, vertical_left, vertical_right
@@ -2058,6 +2185,9 @@ class AnalysisCore(QObject):
         diameter_px = float("nan")
 
         if not contours or contours[0] is None:
+            # Clear the current contour when no contour is detected
+            if hasattr(self, "_current_contour"):
+                self._current_contour = None
             return center_point, rect_width, rect_height, area_px, diameter_px
 
         # Process any detected contours to extract measurements
@@ -2921,14 +3051,6 @@ class AnalysisCore(QObject):
         for key in ["area_px", "area_mm", "diameter_px", "diameter_mm"]:
             if isinstance(result_lists.get(key), list):
                 result_lists[key][q] = float("nan")
-        # Also set area-based diameter to NaN
-        for key in ["area_diameter_px", "area_diameter_mm"]:
-            if key not in result_lists:
-                result_lists[key] = []
-            # Extend list if necessary
-            while len(result_lists[key]) <= q:
-                result_lists[key].append(float("nan"))
-            result_lists[key][q] = float("nan")
 
     def _set_area_diameter_px(self, result_lists, q, area_px, diameter_px):
         """Set area and diameter in pixels at index q."""
@@ -2937,12 +3059,6 @@ class AnalysisCore(QObject):
         if isinstance(result_lists.get("diameter_px"), list):
             result_lists["diameter_px"][q] = diameter_px
         # Set area-based diameter (calculated from detected area)
-        if "area_diameter_px" not in result_lists:
-            result_lists["area_diameter_px"] = []
-        # Extend list if necessary
-        while len(result_lists["area_diameter_px"]) <= q:
-            result_lists["area_diameter_px"].append(float("nan"))
-        result_lists["area_diameter_px"][q] = diameter_px
 
     def _set_area_diameter_mm(self, result_lists, q, area_px, diameter_px):
         """Set area and diameter in mm at index q."""

@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 from PySide6.QtCore import (
     QCoreApplication,
+    QLocale,
     QPoint,
     QSize,
     Qt,
@@ -31,12 +32,12 @@ from PySide6.QtGui import (
     QPixmap,
     QPolygon,
     QShortcut,
+    QValidator,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -53,7 +54,6 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QSpinBox,
-    QTextEdit,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -64,7 +64,7 @@ from src.helpers.preview import show_preview
 from src.helpers.save_results import save_results
 from src.helpers.velocity import calculate_velocities
 from src.threads import AnalysisThread
-from src.utilities.image import rotate_image
+from src.utilities.image import rotate_image, safe_imread
 from src.utilities.logging_manager import get_logger
 from src.utilities.preview_optimization import get_optimized_preview_generator
 from src.utilities.roi import ROISelector
@@ -73,231 +73,42 @@ from src.utilities.roi import ROISelector
 logger = get_logger(__name__)
 
 
-def normalize_path_for_ascii(path: str) -> str:
-    """Convert a path with special characters to ASCII-compatible version.
+class FlexibleDoubleSpinBox(QDoubleSpinBox):
+    """QDoubleSpinBox that accepts both comma and dot as decimal separators.
 
-    Args:
-    ----
-        path: Original path that may contain special characters
-
-    Returns:
-    -------
-        str: ASCII-compatible version of the path
-
+    This helps users in locales where comma is the decimal separator and
+    also accepts pasted values with commas.
     """
-    import unicodedata
 
-    # Normalize unicode characters to their ASCII equivalents where possible
-    normalized = unicodedata.normalize("NFKD", path)
-    # Remove accents and diacritics
-    ascii_path = "".join(c for c in normalized if ord(c) < 128)
+    def validate(self, text, pos):
+        """Validate input, accepting both comma and dot as decimal separators."""
+        # Normalize comma to dot for validation
+        t = text.replace(",", ".")
+        # Allow empty and partial input
+        if t in ("", "-", "+"):
+            return QValidator.Intermediate
+        try:
+            float(t)
+            return QValidator.Acceptable
+        except Exception:
+            return QValidator.Invalid
 
-    # Handle Windows drive letters specially (preserve C:, D:, etc.)
-    drive_letter = ""
-    remaining_path = ascii_path
-    if len(ascii_path) >= 2 and ascii_path[1] == ":":
-        drive_letter = ascii_path[:2]  # Keep "C:", "D:", etc.
-        remaining_path = ascii_path[2:]  # Process the rest
-
-    # Replace any remaining problematic characters with underscores
-    # Keep valid path characters: letters, numbers, and common path symbols
-    valid_chars = set(
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\\/_-. ()"
-    )
-    cleaned_remaining = "".join(c if c in valid_chars else "_" for c in remaining_path)
-
-    # Combine drive letter with cleaned path
-    ascii_path = drive_letter + cleaned_remaining
-
-    # Clean up multiple consecutive underscores
-    while "__" in ascii_path:
-        ascii_path = ascii_path.replace("__", "_")
-    # Remove leading/trailing underscores from each path component
-    path_parts = ascii_path.split("\\")
-    cleaned_parts = []
-    for i, part in enumerate(path_parts):
-        if i == 0 and ":" in part:
-            # Keep drive letter as-is
-            cleaned_parts.append(part)
-        elif part.strip("_"):
-            cleaned_parts.append(part.strip("_"))
-    return "\\".join(cleaned_parts)
+    def valueFromText(self, text: str) -> float:  # noqa: N802
+        """Convert text to float, accepting both comma and dot as decimal separators."""
+        # Replace comma with dot and try parsing as float
+        t = text.replace(",", ".")
+        try:
+            return float(t)
+        except Exception:
+            # Fall back to base implementation which uses locale
+            return super().valueFromText(text)
 
 
-class PathValidationDialog(QDialog):
-    """Dialog for validating and converting folder paths with special characters."""
-
-    def __init__(self, parent=None):
-        """Initialize the path validation dialog."""
-        super().__init__(parent)
-        self.setWindowTitle("Folder Path Validation")
-        self.setModal(True)
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(400)
-
-        # Results storage
-        self.user_choice = None  # 'yes', 'no', or None
-        self.path_mappings = {}  # {original_path: converted_path}
-        self._setup_ui()
-
-    def _setup_ui(self):
-        """Set up the dialog UI."""
-        layout = QVBoxLayout(self)
-
-        # Title and description
-        title_label = QLabel("Folder Path Contains Special Characters")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(title_label)
-
-        description = QLabel(
-            "The selected folder path(s) contain special characters (e.g., ü, ä, ö, ß) "
-            "that may cause issues with the analysis. The application can "
-            "automatically rename these folders and files to ASCII-compatible versions."
-        )
-        description.setWordWrap(True)
-        layout.addWidget(description)
-
-        # Warning label
-        warning_label = QLabel(
-            "⚠️ Warning: This will permanently rename the folders and files. "
-            "Make sure you have backups if needed."
-        )
-        warning_label.setStyleSheet("color: #FF6B00; font-weight: bold;")
-        warning_label.setWordWrap(True)
-        layout.addWidget(warning_label)
-
-        # Path conversion display - two column layout
-        display_layout = QHBoxLayout()
-
-        # Left column: paths with highlighted problematic characters
-        left_layout = QVBoxLayout()
-        path_label = QLabel("Paths with problematic characters:")
-        path_label.setStyleSheet("font-weight: bold;")
-        left_layout.addWidget(path_label)
-
-        self.path_display = QTextEdit()
-        self.path_display.setReadOnly(True)
-        self.path_display.setMaximumHeight(200)
-        left_layout.addWidget(self.path_display)
-
-        # Right column: character replacement mappings
-        right_layout = QVBoxLayout()
-        mapping_label = QLabel("Character replacements:")
-        mapping_label.setStyleSheet("font-weight: bold;")
-        right_layout.addWidget(mapping_label)
-
-        self.mapping_display = QTextEdit()
-        self.mapping_display.setReadOnly(True)
-        self.mapping_display.setMaximumHeight(200)
-        self.mapping_display.setMaximumWidth(200)
-        right_layout.addWidget(self.mapping_display)
-
-        display_layout.addLayout(left_layout)
-        display_layout.addLayout(right_layout)
-        layout.addLayout(display_layout)
-
-        # Checkbox removed as all paths are renamed anyway
-
-        # Buttons
-        button_layout = QHBoxLayout()
-
-        self.yes_button = QPushButton("Yes - Rename Folder(s)")
-        self.yes_button.clicked.connect(self._on_yes_clicked)
-        button_layout.addWidget(self.yes_button)
-
-        self.no_button = QPushButton("No - Cancel")
-        self.no_button.clicked.connect(self._on_no_clicked)
-        button_layout.addWidget(self.no_button)
-
-        layout.addLayout(button_layout)
-
-    def set_paths(self, paths: list[str]):
-        """Set the paths to be validated and show before/after conversion.
-
-        Args:
-        ----
-            paths: List of folder paths to validate
-
-        """
-        self.path_mappings = {}
-        display_html = ""
-        char_mappings = set()  # Track unique character replacements
-
-        for path in paths:
-            try:
-                path.encode("ascii")
-                continue
-            except UnicodeEncodeError:
-                converted_path = normalize_path_for_ascii(path)
-                self.path_mappings[path] = converted_path
-
-                # Create highlighted version with only problematic chars marked
-                highlighted_path = self._highlight_problematic_chars(
-                    path, char_mappings
-                )
-                display_html += f"{highlighted_path}<br>"
-
-        if display_html:
-            self.path_display.setHtml(display_html)
-            # Show character mappings
-            mapping_text = "\n".join(sorted(char_mappings))
-            self.mapping_display.setPlainText(mapping_text)
-        else:
-            self.path_display.setPlainText("No paths require conversion.")
-            self.mapping_display.setPlainText("No character replacements needed.")
-
-    def _on_yes_clicked(self):
-        """Handle Yes button click."""
-        self.user_choice = "yes"
-        self.accept()
-
-    def _highlight_problematic_chars(self, path: str, char_mappings: set) -> str:
-        """Highlight problematic characters in the path and track replacements.
-
-        Args:
-        ----
-            path: The original path
-            char_mappings: Set to collect character replacement mappings
-
-        Returns:
-        -------
-            str: HTML string with problematic characters highlighted
-
-        """
-        import unicodedata
-
-        result = ""
-
-        for char in path:
-            try:
-                char.encode("ascii")
-                # Character is ASCII-compatible
-                result += char
-            except UnicodeEncodeError:
-                # Character needs replacement
-                normalized = unicodedata.normalize("NFKD", char)
-                ascii_char = "".join(c for c in normalized if ord(c) < 128)
-                if not ascii_char:
-                    ascii_char = "_"
-
-                # Add to mappings (avoid duplicates)
-                char_mappings.add(f"{char} → {ascii_char}")
-
-                # Highlight the problematic character
-                highlighted = (
-                    '<span style="color: red; font-weight: bold; '
-                    'text-decoration: underline;">'
-                    f"{char}"
-                    "</span>"
-                )
-                result += highlighted
-
-        return result
-
-    def _on_no_clicked(self):
-        """Handle No button click."""
-        self.user_choice = "no"
-        self.reject()
+# Reference FlexibleDoubleSpinBox methods so static analysers (vulture)
+_vulture_references_flexible_spinbox = (
+    FlexibleDoubleSpinBox.validate,
+    FlexibleDoubleSpinBox.valueFromText,
+)
 
 
 class FolderDropZone(QFrame):
@@ -493,8 +304,6 @@ class AnalysisGUI(QWidget):
             self.main_thread = None
 
             # Path validation preferences
-            self._path_validation_choice = None  # 'yes', 'no', or None
-            self._apply_to_all_paths = False
             self.preview_thread = None
 
             # Add a processing state flag to track when analysis is running
@@ -1422,9 +1231,14 @@ class AnalysisGUI(QWidget):
         # Pixel
         pixel_label = QLabel("Pixel:")
         pixel_label.setAlignment(Qt.AlignLeft)
-        self.PIXEL_entry = QDoubleSpinBox()
+        self.PIXEL_entry = FlexibleDoubleSpinBox()
         self.PIXEL_entry.setRange(0, 100)
         self.PIXEL_entry.setSingleStep(0.01)
+        # Use the system locale so users can enter decimals with comma or dot
+        try:
+            self.PIXEL_entry.setLocale(QLocale.system())
+        except Exception:
+            pass
         self.PIXEL_entry.setValue(self.controller.pixel)
         self.PIXEL_entry.setFixedWidth(100)
         self.PIXEL_entry.setAlignment(Qt.AlignRight)
@@ -1450,9 +1264,14 @@ class AnalysisGUI(QWidget):
         # Rotate (hidden in packing and free sedimentation modes)
         rotate_label = QLabel("Rotate:")
         rotate_label.setAlignment(Qt.AlignLeft)
-        self.rotate_angle_entry = QDoubleSpinBox()
+        self.rotate_angle_entry = FlexibleDoubleSpinBox()
         self.rotate_angle_entry.setRange(-360, 360)
         self.rotate_angle_entry.setSingleStep(0.1)
+        # Respect system locale for decimal separator (comma/dot)
+        try:
+            self.rotate_angle_entry.setLocale(QLocale.system())
+        except Exception:
+            pass
         self.rotate_angle_entry.setValue(self.controller.rotate_angle)
         self.rotate_angle_entry.setFixedWidth(100)
         self.rotate_angle_entry.setAlignment(Qt.AlignRight)
@@ -1822,7 +1641,7 @@ class AnalysisGUI(QWidget):
         )
 
         # Load and rotate the image to get its size
-        orig_img = cv2.imread(middle_image)
+        orig_img = safe_imread(middle_image)
 
         temp_roi_image = rotate_image(orig_img, rotation_angle)
         if temp_roi_image is None:
@@ -2053,7 +1872,7 @@ class AnalysisGUI(QWidget):
             middle_image = image_files[middle_idx]
 
             # Load the image
-            image = cv2.imread(middle_image)
+            image = safe_imread(middle_image)
             return image
 
         except Exception as e:
@@ -3576,8 +3395,6 @@ class AnalysisGUI(QWidget):
                     "ellipse_diameter_px",
                     "ellipse_diameter_mm",
                     "velocity",
-                    "area_diameter_px",
-                    "area_diameter_mm",
                     "center_points_px",
                     "center_points_mm",
                     "contact_line_px",
@@ -4030,157 +3847,6 @@ class AnalysisGUI(QWidget):
         logger.info(f"User dropped {len(folder_paths)} folders")
         self._process_selected_folders(folder_paths)
 
-    def _validate_and_convert_paths(self, folders: list[str]) -> list[str]:
-        """Validate folder paths and convert special characters if approved by user.
-
-        Args:
-        ----
-            folders: List of folder paths to validate
-
-        Returns:
-        -------
-            list[str]: List of validated/converted folder paths, or empty if cancelled
-
-        """
-        # Check which folders have special characters
-        problematic_folders, valid_folders = self._categorize_folders(folders)
-
-        # If no problematic folders, return all as-is
-        if not problematic_folders:
-            return folders
-
-        # Check if user has already made a choice for "Apply to All"
-        if self._apply_to_all_paths and self._path_validation_choice is not None:
-            if self._path_validation_choice == "yes":
-                # Create simple mappings and convert
-                path_mappings = {
-                    folder: normalize_path_for_ascii(folder)
-                    for folder in problematic_folders
-                }
-                return self._convert_folder_paths(folders, path_mappings)
-            else:
-                # User previously chose "No" for all - skip these folders
-                return []
-
-        # Show validation dialog and get user choice
-        dialog = PathValidationDialog(self)
-        dialog.set_paths(problematic_folders)
-
-        if dialog.exec() == QDialog.Accepted and dialog.user_choice == "yes":
-            # Store user choice for future use (if/when an "apply to all"
-            # option is added to the dialog). For now, only honor 'yes'.
-            self._path_validation_choice = "yes"
-            self._apply_to_all_paths = True
-
-            return self._convert_folder_paths(folders, dialog.path_mappings)
-
-        # User cancelled or declined conversion. Do NOT set
-        # `_apply_to_all_paths` here so the dialog can reappear for future
-        # folder selections. Return empty to indicate no converted paths.
-        return []
-
-    def _categorize_folders(self, folders: list[str]) -> tuple[list[str], list[str]]:
-        """Categorize folders into problematic and valid ones."""
-        problematic_folders = []
-        valid_folders = []
-
-        for folder in folders:
-            try:
-                folder.encode("ascii")
-                valid_folders.append(folder)
-            except UnicodeEncodeError:
-                problematic_folders.append(folder)
-
-        return problematic_folders, valid_folders
-
-    def _convert_folder_paths(
-        self, folders: list[str], path_mappings: dict
-    ) -> list[str]:
-        """Convert folder paths using the provided mappings."""
-        converted_folders = []
-
-        for folder in folders:
-            if folder in path_mappings:
-                converted_path = self._create_converted_directory(
-                    folder, path_mappings[folder]
-                )
-                converted_folders.append(converted_path)
-            else:
-                converted_folders.append(folder)
-
-        return converted_folders
-
-    def _create_converted_directory(
-        self, original_path: str, converted_path: str
-    ) -> str:
-        """Rename the directory and its contents to remove special characters."""
-        try:
-            # If paths are the same, no conversion needed
-            if original_path == converted_path:
-                return original_path
-
-            # Check if converted path already exists
-            if os.path.exists(converted_path):
-                logger.warning(f"Converted path already exists: {converted_path}")
-                return converted_path
-
-            # First, rename all files and subdirectories within the folder
-            self._rename_folder_contents(original_path)
-
-            # Then rename the main folder
-            os.rename(original_path, converted_path)
-            logger.info(f"Renamed folder: {original_path} -> {converted_path}")
-            return converted_path
-
-        except Exception as e:
-            logger.error(f"Failed to rename folder {original_path}: {e}")
-            # Return original path if rename fails
-            QMessageBox.warning(
-                self,
-                "Folder Rename Failed",
-                f"Failed to rename folder:\n{original_path}\n\n"
-                f"Using original path instead. Error: {e}",
-            )
-            return original_path
-
-    def _rename_folder_contents(self, folder_path: str):
-        """Recursively rename all files and subdirectories to remove special chars."""
-        try:
-            # Get all items in the folder
-            items = os.listdir(folder_path)
-
-            # Process files and subdirectories
-            for item in items:
-                original_item_path = os.path.join(folder_path, item)
-                normalized_name = normalize_path_for_ascii(item)
-                new_item_path = os.path.join(folder_path, normalized_name)
-
-                # Only rename if the name actually changed
-                if item != normalized_name and not os.path.exists(new_item_path):
-                    try:
-                        # If it's a directory, recursively rename its contents first
-                        if os.path.isdir(original_item_path):
-                            self._rename_folder_contents(original_item_path)
-
-                        # Rename the item
-                        os.rename(original_item_path, new_item_path)
-                        logger.debug(f"Renamed: {item} -> {normalized_name}")
-
-                    except Exception as e:
-                        logger.warning(f"Failed to rename {original_item_path}: {e}")
-
-                # If it's a subdirectory (whether renamed or not), process its contents
-                current_path = (
-                    new_item_path
-                    if os.path.exists(new_item_path)
-                    else original_item_path
-                )
-                if os.path.isdir(current_path):
-                    self._rename_folder_contents(current_path)
-
-        except Exception as e:
-            logger.error(f"Failed to process folder contents in {folder_path}: {e}")
-
     def _find_data_folders(self, parent_folder: str) -> list[str]:
         """Find all subfolders containing data (images or videos).
 
@@ -4283,22 +3949,12 @@ class AnalysisGUI(QWidget):
             folders: List of folder paths selected by user
 
         """
-        # Validate and convert initial paths
-        validated_folders = self._validate_and_convert_paths(folders)
-        if not validated_folders:
-            return
-
         # Expand to data-containing subfolders (deduplicated)
-        unique_data_folders = self._expand_to_data_folders(validated_folders)
+        unique_data_folders = self._expand_to_data_folders(folders)
         logger.info(f"Found {len(unique_data_folders)} unique data folders")
 
-        # Validate the detected subfolders for special characters
-        validated_data_folders = self._validate_and_convert_paths(unique_data_folders)
-        if not validated_data_folders:
-            return
-
         # Add validated data folders to the UI and controller
-        self._add_folders_to_list(validated_data_folders)
+        self._add_folders_to_list(unique_data_folders)
 
     def _expand_to_data_folders(self, folders: list[str]) -> list[str]:
         """Return deduplicated list of data-containing folders from given roots."""
@@ -4347,6 +4003,17 @@ class AnalysisGUI(QWidget):
         for item in selected_items:
             # Get the full path from item data instead of display text
             folder_path = item.data(Qt.UserRole)
+
+            # Clear state for this folder before removing
+            if hasattr(self, "folder_delegate") and folder_path:
+                try:
+                    from src.utilities.path_identifier import encode_path
+
+                    key = encode_path(folder_path)
+                except Exception:
+                    key = folder_path
+                self.folder_delegate.progress_data.pop(key, None)
+                self.folder_delegate.results_presence.pop(key, None)
 
             self.controller.remove_folder_path(folder_path)
             row = self.folder_list.row(item)
@@ -4519,11 +4186,15 @@ class AnalysisGUI(QWidget):
         # Set processing flag
         self.is_processing = True
 
-        # Reset progress for all folders in the list (not just the ones being processed)
+        # Reset progress for all folders in the list by folder path
         for i in range(self.folder_list.count()):
-            self.folder_delegate.set_progress(i, 0)
-            # Update each item individually instead of the whole list
-            self.folder_list.update(self.folder_list.model().index(i, 0))
+            item = self.folder_list.item(i)
+            if item:
+                folder_path = item.data(Qt.UserRole)
+                if folder_path:
+                    self.folder_delegate.set_progress(folder_path, 0)
+                    # Update each item individually instead of the whole list
+                    self.folder_list.update(self.folder_list.model().index(i, 0))
 
         # Reset overall progress
         self.overall_progress.setValue(0)
@@ -4579,13 +4250,20 @@ class AnalysisGUI(QWidget):
 
     def _update_batch_progress(self, folder_index, folder_path, progress_percent):
         """Update UI with batch processing progress."""
-        # Map processing index to UI index
-        ui_index = self.processing_to_ui_index_map.get(folder_index, folder_index)
+        # Update progress bar for this folder using folder path
+        self.folder_delegate.set_progress(folder_path, progress_percent)
 
-        # Update progress bar for this folder
-        self.folder_delegate.set_progress(ui_index, progress_percent)
+        # Find the UI index for this folder path to update the specific item
+        ui_index = None
+        for i in range(self.folder_list.count()):
+            item = self.folder_list.item(i)
+            if item and item.data(Qt.UserRole) == folder_path:
+                ui_index = i
+                break
+
         # Update the specific item rather than the whole list
-        self.folder_list.update(self.folder_list.model().index(ui_index, 0))
+        if ui_index is not None:
+            self.folder_list.update(self.folder_list.model().index(ui_index, 0))
 
     def _on_folder_completed(self, folder_index, folder_path, success):
         """Handle completion of a single folder in the batch."""
@@ -4624,9 +4302,23 @@ class AnalysisGUI(QWidget):
         )
         self.pause_resume_btn.setToolTip("Pause processing")
 
-        # Clean up thread
-        self.batch_thread.quit()
-        self.batch_thread.wait()
+        # Clean up thread and clear references so a new batch can start
+        try:
+            if hasattr(self, "batch_thread") and self.batch_thread:
+                self.batch_thread.quit()
+                self.batch_thread.wait()
+        except Exception:
+            logger.exception("Error while quitting batch_thread during completion")
+        finally:
+            # Clear references to allow starting a fresh batch later
+            try:
+                self.batch_thread = None
+            except Exception:
+                pass
+            try:
+                self.batch_worker = None
+            except Exception:
+                pass
 
     def _handle_batch_error(self, folder_index, folder_path, error_msg):
         """Handle errors during batch processing."""
@@ -4642,10 +4334,30 @@ class AnalysisGUI(QWidget):
             QIcon.fromTheme("media-playback-pause", QIcon(":/icons/pause.png"))
         )
         self.pause_resume_btn.setToolTip("Pause processing")
+        # Defensive cleanup: clear thread and worker references so next batch can start
+        try:
+            if hasattr(self, "batch_thread") and self.batch_thread:
+                try:
+                    self.batch_thread.quit()
+                    self.batch_thread.wait(1000)
+                except Exception:
+                    pass
+            self.batch_thread = None
+            self.batch_worker = None
+        except Exception:
+            pass
 
     def _update_folder_list(self, folder_paths):
         """Update the folder list widget when paths in controller change."""
         self.folder_list.clear()
+
+        # Clear all old state data first to prevent inheritance of old state
+        if hasattr(self, "folder_delegate"):
+            self.folder_delegate.progress_data = {}
+            self.folder_delegate.results_presence = {}
+            # Set reference to folder list widget for path-based tracking
+            self.folder_delegate.folder_list_widget = self.folder_list
+
         for path in folder_paths:
             # Display the absolute path and store the original full path as data
             display_path = os.path.abspath(path)
@@ -4657,9 +4369,6 @@ class AnalysisGUI(QWidget):
             # Set size hint for proper display of progress bars
             item.setSizeHint(QSize(300, 32))  # Fixed size for progress bars
             self.folder_list.addItem(item)
-
-        # Reset progress data when updating the list
-        self.folder_delegate.progress_data = {}
 
         # Reset results presence and defer scan to avoid blocking startup
         try:
@@ -4976,7 +4685,7 @@ class AnalysisGUI(QWidget):
 
         # Load and rotate the image to get its size
         # Load image and attempt rotation; handle failures gracefully
-        orig_img = cv2.imread(middle_image)
+        orig_img = safe_imread(middle_image)
         temp_roi_image = rotate_image(orig_img, rotation_angle)
         if temp_roi_image is None:
             logger.error(f"Failed to load/rotate image for ROI ranges: {middle_image}")
@@ -5063,16 +4772,22 @@ class AnalysisGUI(QWidget):
                                 and os.path.isdir(folder_path)
                                 and os.path.exists(results_file)
                             )
-                            self.folder_delegate.set_results_presence(i, has_results)
+                            self.folder_delegate.set_results_presence(
+                                folder_path, has_results
+                            )
                             # Update each item individually
                             if hasattr(self, "folder_list") and self.folder_list:
                                 self.folder_list.update(
                                     self.folder_list.model().index(i, 0)
                                 )
                         except (OSError, PermissionError, FileNotFoundError):
-                            self.folder_delegate.set_results_presence(i, False)
+                            self.folder_delegate.set_results_presence(
+                                folder_path, False
+                            )
                         except Exception:
-                            self.folder_delegate.set_results_presence(i, False)
+                            self.folder_delegate.set_results_presence(
+                                folder_path, False
+                            )
 
         except Exception as e:
             logger.error(f"Failed to scan folder results immediately: {e}")
@@ -5080,35 +4795,29 @@ class AnalysisGUI(QWidget):
     def _scan_single_folder_results(self, folder_path: str):
         """Scan a single folder for results (for deferred scanning)."""
         try:
-            # Find the index of this folder in the list
-            folder_index = None
+            results_file = os.path.join(folder_path, "results_raw.xlsx")
+            has_results = (
+                os.path.exists(folder_path)
+                and os.path.isdir(folder_path)
+                and os.path.exists(results_file)
+            )
+            self.folder_delegate.set_results_presence(folder_path, has_results)
+
+            # Find the index to update the UI item
             for i in range(self.folder_list.count()):
                 item = self.folder_list.item(i)
                 if item and item.data(Qt.UserRole) == folder_path:
-                    folder_index = i
+                    if hasattr(self, "folder_list") and self.folder_list:
+                        self.folder_list.update(self.folder_list.model().index(i, 0))
                     break
 
-            if folder_index is not None:
-                results_file = os.path.join(folder_path, "results_raw.xlsx")
-                has_results = (
-                    os.path.exists(folder_path)
-                    and os.path.isdir(folder_path)
-                    and os.path.exists(results_file)
-                )
-                self.folder_delegate.set_results_presence(folder_index, has_results)
-                # Update the item
-                if hasattr(self, "folder_list") and self.folder_list:
-                    self.folder_list.update(
-                        self.folder_list.model().index(folder_index, 0)
-                    )
-
-                # Update scanner worker if it exists
-                if self._results_scanner_worker is not None:
-                    paths = [
-                        self.folder_list.item(i).data(Qt.UserRole)
-                        for i in range(self.folder_list.count())
-                    ]
-                    self._results_scanner_worker.set_folder_paths(paths)
+            # Update scanner worker if it exists
+            if self._results_scanner_worker is not None:
+                paths = [
+                    self.folder_list.item(i).data(Qt.UserRole)
+                    for i in range(self.folder_list.count())
+                ]
+                self._results_scanner_worker.set_folder_paths(paths)
         except Exception:
             pass
 
@@ -5136,7 +4845,7 @@ class AnalysisGUI(QWidget):
                     if delegate is not None and hasattr(
                         delegate, "set_results_presence"
                     ):
-                        delegate.set_results_presence(idx, has)
+                        delegate.set_results_presence(folder_path, has)
                     else:
                         logger.debug(
                             "No folder_list and no usable folder_delegate to update for"
@@ -5194,7 +4903,7 @@ class AnalysisGUI(QWidget):
         """Set results presence on delegate and refresh the list item if possible."""
         try:
             if getattr(self, "folder_delegate", None) is not None:
-                self.folder_delegate.set_results_presence(target_index, has)
+                self.folder_delegate.set_results_presence(folder_path, has)
         except Exception:
             logger.exception(
                 "Failed to set results presence for index %s",

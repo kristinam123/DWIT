@@ -18,6 +18,7 @@ from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from src.utilities.logging_manager import get_logger
+from src.utilities.path_identifier import encode_path
 
 # Custom delegate for rendering folder items with progress bars
 # Setup logger for this module
@@ -30,25 +31,35 @@ class FolderItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         """Initialize the FolderItemDelegate."""
         super().__init__(parent)
-        self.progress_data = {}  # {row: progress_value}
-        self.results_presence = {}  # {row: bool} whether results_raw.xlsx exists
+        self.progress_data = {}  # {folder_path: progress_value}
+        # {folder_path: bool} whether results_raw.xlsx exists
+        self.results_presence = {}
+        self.folder_list_widget = None  # Reference to the folder list widget
 
-    def set_results_presence(self, row, has_results: bool):
-        """Set whether a folder (row) has results file present."""
+    def set_results_presence(self, folder_path, has_results: bool):
+        """Set whether a folder has results file present."""
+        # Use encoded token as internal key so dictionaries only contain
+        # ASCII-safe keys even when original paths contain non-ASCII chars.
+        try:
+            key = encode_path(folder_path) if folder_path else folder_path
+        except Exception:
+            # Fallback to raw path if encoding fails
+            key = folder_path
+
         # Only update the presence flag here. Do NOT forcefully override
-        # the per-row progress value — progress should reflect live
+        # the per-folder progress value — progress should reflect live
         # processing and not be reset/overridden by background scans.
-        self.results_presence[row] = bool(has_results)
+        self.results_presence[key] = bool(has_results)
         # Ensure an entry exists in progress_data to avoid KeyError on paint,
         # but do not change existing progress values when a scan reports
         # presence/absence. This preserves in-progress UI state.
         try:
-            if row not in self.progress_data:
+            if key not in self.progress_data:
                 # Default to 0 only if we don't already have progress info
-                self.progress_data[row] = 0
+                self.progress_data[key] = 0
         except Exception:
             # Defensive fallback
-            self.progress_data = {row: 0}
+            self.progress_data = {key: 0}
 
     def clear_results_presence(self):
         """Clear all results presence data."""
@@ -59,9 +70,13 @@ class FolderItemDelegate(QStyledItemDelegate):
         except Exception:
             self.progress_data = {}
 
-    def set_progress(self, row, progress_value):
-        """Set progress value for a row (0-100, or -1 for error)."""
-        self.progress_data[row] = progress_value
+    def set_progress(self, folder_path, progress_value):
+        """Set progress value for a folder (0-100, or -1 for error)."""
+        try:
+            key = encode_path(folder_path) if folder_path else folder_path
+        except Exception:
+            key = folder_path
+        self.progress_data[key] = progress_value
 
     def size_hint(self, option, index):
         """Return a larger size to accommodate path and progress bar."""
@@ -74,8 +89,25 @@ class FolderItemDelegate(QStyledItemDelegate):
         try:
             row = index.row()
 
-            # Choose colors based on presence
-            has_results = self.results_presence.get(row, False)
+            # Get the folder path from the item data to use as key
+            folder_path = None
+            if hasattr(index, "data") and index.data(Qt.UserRole):
+                folder_path = index.data(Qt.UserRole)
+            elif self.folder_list_widget and row < self.folder_list_widget.count():
+                item = self.folder_list_widget.item(row)
+                if item:
+                    folder_path = item.data(Qt.UserRole)
+
+            # Choose colors based on presence (use folder path as key)
+            # Use encoded key lookup to support non-ASCII folder paths.
+            try:
+                lookup_key = encode_path(folder_path) if folder_path else folder_path
+            except Exception:
+                lookup_key = folder_path
+
+            has_results = (
+                self.results_presence.get(lookup_key, False) if folder_path else False
+            )
             # green if results, gray otherwise
             circle_color = QColor(0, 170, 0) if has_results else QColor(150, 150, 150)
 
@@ -120,7 +152,7 @@ class FolderItemDelegate(QStyledItemDelegate):
                 )
 
             # Draw progress bar (progress is independent from the done/checkmark)
-            progress_value = self.progress_data.get(row, 0)
+            progress_value = self.progress_data.get(lookup_key, 0) if folder_path else 0
 
             # Only draw progress bar if we have some progress or completed folder
             if progress_value > 0 or has_results:
@@ -334,8 +366,26 @@ class BatchProcessingWorker(QObject):
 
     def stop(self):
         """Stop processing after the current image is complete."""
-        self.should_stop = True
-        self.is_paused = False  # Also clear pause state when stopping
+        # Acquire mutex and wake any waiting pause condition so the
+        # worker can notice `should_stop` and exit promptly even if it
+        # was paused when the stop was requested.
+        try:
+            self._pause_mutex.lock()
+            self.should_stop = True
+            self.is_paused = False  # Also clear pause state when stopping
+            # Wake any threads waiting in the pause condition
+            try:
+                self._pause_condition.wakeAll()
+            except Exception:
+                # If wakeAll fails for whatever reason, continue and rely
+                # on the next progress callback check to stop the loop.
+                pass
+        finally:
+            try:
+                self._pause_mutex.unlock()
+            except Exception:
+                pass
+
         logger.info("Batch processing stop requested")
 
     def _folder_progress_callback(
