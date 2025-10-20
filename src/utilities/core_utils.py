@@ -1,15 +1,121 @@
-"""Centralized logging management for Droplet Wall Interaction Tool (DWIT).
+"""DWIT utilities: centralized logging management and path identifier helpers.
 
-This module provides a unified logging system that captures
-Droplet Wall Interaction Tool (DWIT) application logs
-and routes them to the log overlay with proper formatting and filtering.
+This module provides a unified logging system that captures Droplet Wall
+Interaction Tool (DWIT) application logs and routes them to the GUI log
+overlay with proper formatting and filtering. It includes a singleton
+LoggingManager, custom handlers and formatters, and helpers to capture
+stdout/stderr and control which levels are shown in the overlay.
+
+It also provides deterministic, reversible, filesystem-safe identifiers for
+arbitrary Windows paths by encoding UTF-8 bytes using URL-safe base64
+(stripping '=' padding) and prefixing tokens with 'b64_'. Unicode is
+normalized to NFC before encoding and tokens that would match Windows
+reserved device names are prefixed with '_' to avoid collisions.
+
+Design notes:
+- Tokens are deterministic and reversible; callers must still be aware of
+    filesystem/path length limits.
+- Uses urlsafe base64 and strips padding to keep tokens filename-safe; padding
+    is restored on decode.
+- No sidecar files are used; mapping is purely algorithmic.
 """
 
+from __future__ import annotations
+
+import base64
+import binascii
 import logging
 import sys
+import unicodedata
 from datetime import datetime
+from typing import Final
 
 from PySide6.QtCore import QObject, QSettings, Signal
+
+# Windows reserved device names (case-insensitive)
+_RESERVED: Final[set[str]] = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+}
+
+
+def _normalize(s: str) -> str:
+    """Normalize Unicode to NFC for deterministic behavior."""
+    return unicodedata.normalize("NFC", s)
+
+
+def encode_path(path: str) -> str:
+    r"""Encode an arbitrary path into a filesystem-safe token.
+
+    The token is deterministic and reversible. It is safe for use as a
+    filename or database key on Windows (uses only A-Za-z0-9_- and an ASCII
+    prefix). Caller must be aware of overall length limits (Windows MAX_PATH).
+
+    Example: encode_path(r"C:\\Users\\ä\\file.txt") -> 'b64_<...>'
+    """
+    if not isinstance(path, str):
+        raise TypeError("path must be a str")
+
+    normalized = _normalize(path)
+    data = normalized.encode("utf-8")
+    b64 = base64.urlsafe_b64encode(data).decode("ascii")
+    # strip padding to make tokens shorter and still reversible (we re-pad on decode)
+    b64 = b64.rstrip("=")
+    token = "b64_" + b64
+    # Guard against accidental reserved device names (case-insensitive)
+    if token.upper() in _RESERVED:
+        token = "_" + token
+    return token
+
+
+def decode_path(token: str) -> str:
+    """Decode a token previously produced by encode_path back to the original path.
+
+    Raises ValueError if the token format is not recognized or decoding fails.
+    """
+    if not isinstance(token, str):
+        raise TypeError("token must be a str")
+
+    # handle the optional leading '_' used when token matched a reserved name
+    if token.startswith("_"):
+        token = token[1:]
+
+    if not token.startswith("b64_"):
+        raise ValueError("unsupported token format")
+
+    b64 = token[4:]
+    # restore padding
+    pad_len = (-len(b64)) % 4
+    b64_padded = b64 + ("=" * pad_len)
+    try:
+        data = base64.urlsafe_b64decode(b64_padded.encode("ascii"))
+    except (ValueError, binascii.Error) as exc:  # pragma: no cover - defensive
+        raise ValueError("invalid base64 token") from exc
+
+    return data.decode("utf-8")
+
+
+__all__ = ["decode_path", "encode_path"]
 
 
 class LogLevel:
@@ -119,16 +225,18 @@ class LoggingManager(QObject):
         super().__init__()
         self._initialized = True
 
-        # Log filtering settings
+        # Log filtering settings — default to showing only warnings and errors
+        # (DEBUG and INFO are disabled by default to reduce noise).
         self.enabled_levels = {
-            LogLevel.DEBUG: True,
-            LogLevel.INFO: True,
+            LogLevel.DEBUG: False,
+            LogLevel.INFO: False,
             LogLevel.WARNING: True,
             LogLevel.ERROR: True,
         }
 
         # Track highest log level for status indicator
-        self.highest_level = "info"
+        # Default to 'warning' since debug/info are disabled by default
+        self.highest_level = "warning"
         self.level_priorities = {"debug": 0, "info": 1, "warning": 2, "error": 3}
 
         # Track counts of warnings and errors for status indicator
@@ -153,6 +261,7 @@ class LoggingManager(QObject):
 
         # Setup root logger to capture all logs
         root_logger = logging.getLogger()
+        # Set to DEBUG so all messages reach handlers (filtering done in handlers)
         root_logger.setLevel(logging.DEBUG)
 
         # Remove existing handlers to avoid duplicates
@@ -164,11 +273,15 @@ class LoggingManager(QObject):
 
         # Also add a console handler for terminal output with filtering
         class ConsoleLogHandler(logging.StreamHandler):
+            """Custom console log handler respecting level filtering."""
+
             def __init__(self, logging_manager, *args, **kwargs):
+                """Initialize console handler with reference to logging manager."""
                 super().__init__(*args, **kwargs)
                 self.logging_manager = logging_manager
 
             def emit(self, record):
+                """Emit a log record only if its level is enabled."""
                 # Suppress log types that are disabled
                 if not self.logging_manager.is_level_enabled(record.levelname):
                     return

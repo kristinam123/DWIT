@@ -1,6 +1,6 @@
 """Preview utilities.
 
-For displaying images and analysis results 
+For displaying images and analysis results
 in Droplet Wall Interaction Tool (DWIT).
 """
 
@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QVBoxLayout
 
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
 
 _preview_dialog = None
 _preview_timer = None
@@ -216,6 +216,7 @@ def _setup_auto_close_timer():
         _preview_timer.setSingleShot(True)
 
         def close_dialog():
+            """Close the preview dialog after timeout."""
             global _preview_dialog
             if _preview_dialog is not None:
                 _preview_dialog.close()
@@ -245,7 +246,7 @@ def show_preview(image, parent):
     pixmap = _convert_to_pixmap(image)
 
     # Step 2: Get the target screen
-    screen, screen_geometry = _get_target_screen(parent)
+    _screen, screen_geometry = _get_target_screen(parent)
 
     # Step 3: Calculate the scaled pixmap
     scaled_pixmap = _calculate_scaled_pixmap(pixmap, screen_geometry)

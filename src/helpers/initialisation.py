@@ -9,8 +9,8 @@ import re
 import cv2
 import numpy as np
 
-from src.utilities.image import safe_imread
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
+from src.utilities.image_utils import safe_imread
 
 # Setup logger for this module
 logger = get_logger(__name__)
@@ -182,8 +182,8 @@ def initiate_run(files, save_files, folder_path, fps):
         if background is None:
             logger.error(f"Failed to load background image: {first_image_path}")
 
-        time_int, time = _calculate_timestamps(img_names, fps)
-        logger.info(f"Calculated timestamps for {len(time_int)} images")
+        time, time_int = _calculate_timestamps(img_names, fps)
+        logger.info(f"Calculated timestamps for {len(time)} images")
     else:
         logger.info("Single image mode: processing middle image")
         img_name = os.path.basename(files[len(files) // 2])
@@ -236,7 +236,7 @@ def _calculate_timestamps(image_filenames, fps):
         f"Timestamp calculation complete: {len(time_int)} timestamps "
         f"from {first_number} to {current_number}"
     )
-    return time_int, time_str
+    return time_int, time_str  # Returns (numeric_timestamps, string_timestamps)
 
 
 def __extract_image_number(filename):
@@ -256,13 +256,13 @@ def __extract_image_number(filename):
         return 0
 
     # Look for a 6-digit number near the end of the filename (timestamp format)
-    zahl_str = re.search(r"(\d{6})\D*$", filename)
-    if not zahl_str:
+    count_str = re.search(r"(\d{6})\D*$", filename)
+    if not count_str:
         # Try a more lenient pattern as fallback
-        zahl_str = re.search(r"(\d+)\D*$", filename)
-        if not zahl_str:
+        count_str = re.search(r"(\d+)\D*$", filename)
+        if not count_str:
             logger.warning(f"No numerical pattern found in filename: {filename}")
             return 0
 
-    extracted_number = int(zahl_str.group(1))
+    extracted_number = int(count_str.group(1))
     return extracted_number

@@ -4,6 +4,8 @@ For folder-based analysis in Droplet Wall Interaction Tool.
 """
 
 import os
+import threading
+from contextlib import contextmanager
 
 from PySide6.QtCore import (
     QMutex,
@@ -17,12 +19,35 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
-from src.utilities.logging_manager import get_logger
-from src.utilities.path_identifier import encode_path
+from src.utilities.core_utils import encode_path, get_logger
 
 # Custom delegate for rendering folder items with progress bars
 # Setup logger for this module
 logger = get_logger(__name__)
+
+
+@contextmanager
+def qt_lock(mutex):
+    """Context manager for QMutex to ensure proper lock/unlock.
+
+    Args:
+    ----
+        mutex: QMutex instance to lock
+
+    Yields:
+    ------
+        None
+
+    """
+    mutex.lock()
+    try:
+        yield
+    finally:
+        try:
+            mutex.unlock()
+        except RuntimeError:
+            # Mutex already unlocked or destroyed
+            pass
 
 
 class FolderItemDelegate(QStyledItemDelegate):
@@ -222,8 +247,13 @@ class BatchProcessingWorker(QObject):
 
     # Add new signal for preview images during batch processing
     preview_image_updated = Signal(
-        float, list, list, list, dict
-    )  # q, adv_angles, rec_angles, center_points, result_images
+        float, list, list, list, dict, dict
+    )  # q, adv_angles, rec_angles, center_points, result_images, result_lists
+
+    # Signal to emit folder results after completion for frame data storage
+    folder_results_ready = Signal(
+        int, str, tuple
+    )  # folder_index, folder_path, results (time, time_int, result_lists)
 
     def __init__(self, controller, folder_paths, progress_callback=None):
         """Initialize the BatchProcessor.
@@ -234,22 +264,85 @@ class BatchProcessingWorker(QObject):
         self.controller = controller
         self.folder_paths = folder_paths
         self.progress_callback = progress_callback
-        # Add new state variables for pause and stop functionality
-        self.is_paused = False
-        self.should_stop = False
-        # Flag to request skipping the current folder (continue to next)
-        self.should_skip_current = False
+
+        # Thread-safe state management using RLock for reentrant locking
+        self._state_lock = threading.RLock()
+        self._is_paused = False
+        self._should_stop = False
+        self._should_skip_current = False
+
+        # Thread-safe controller access
+        self._controller_lock = threading.Lock()
+
         # Add Qt synchronization primitives for proper pause/resume
         self._pause_mutex = QMutex()
         self._pause_condition = QWaitCondition()
 
+        thread_id = threading.get_ident()
         logger.debug(
-            f"BatchProcessingWorker initialized with {len(folder_paths)} folders"
+            f"[Thread-{thread_id}] BatchProcessingWorker initialized "
+            f"with {len(folder_paths)} folders"
         )
+
+    # Thread-safe property accessors
+    @property
+    def is_paused(self):
+        """Thread-safe getter for is_paused flag."""
+        with self._state_lock:
+            return self._is_paused
+
+    @is_paused.setter
+    def is_paused(self, value):
+        """Thread-safe setter for is_paused flag."""
+        with self._state_lock:
+            self._is_paused = value
+
+    @property
+    def should_stop(self):
+        """Thread-safe getter for should_stop flag."""
+        with self._state_lock:
+            return self._should_stop
+
+    @should_stop.setter
+    def should_stop(self, value):
+        """Thread-safe setter for should_stop flag."""
+        with self._state_lock:
+            self._should_stop = value
+
+    @property
+    def should_skip_current(self):
+        """Thread-safe getter for should_skip_current flag."""
+        with self._state_lock:
+            return self._should_skip_current
+
+    @should_skip_current.setter
+    def should_skip_current(self, value):
+        """Thread-safe setter for should_skip_current flag."""
+        with self._state_lock:
+            self._should_skip_current = value
+
+    def _safe_set_folder_path(self, folder_path):
+        """Thread-safe method to set controller folder path.
+
+        This method ensures that controller access is protected by a lock
+        to prevent race conditions when multiple threads access the controller.
+
+        Args:
+        ----
+            folder_path: Path to the folder to set in the controller
+
+        """
+        with self._controller_lock:
+            self.controller.set_folder_path(folder_path)
+            thread_id = threading.get_ident()
+            logger.debug(
+                f"[Thread-{thread_id}] Controller folder path set to: {folder_path}"
+            )
 
     def process_folders(self):
         """Process all folders in the queue."""
-        logger.info("Starting batch folder processing")
+        thread_id = threading.get_ident()
+        logger.info(f"[Thread-{thread_id}] Starting batch folder processing")
         self.is_paused = False
         self.should_stop = False
         total_folders = len(self.folder_paths)
@@ -283,18 +376,17 @@ class BatchProcessingWorker(QObject):
 
             try:
                 # Handle pause state - wait until unpaused
-                self._pause_mutex.lock()
-                while self.is_paused and not self.should_stop:
-                    self._pause_condition.wait(self._pause_mutex)  # Proper Qt wait
-                self._pause_mutex.unlock()
+                with qt_lock(self._pause_mutex):
+                    while self.is_paused and not self.should_stop:
+                        self._pause_condition.wait(self._pause_mutex)  # Proper Qt wait
 
                 if self.should_stop:
                     break
                 # Reset skip flag at start of folder
                 self.should_skip_current = False
 
-                # Set the current folder path in the controller
-                self.controller.set_folder_path(folder_path)
+                # Set the current folder path in the controller (thread-safe)
+                self._safe_set_folder_path(folder_path)
 
                 # Process the folder
                 results = self.controller.process_images(
@@ -325,6 +417,8 @@ class BatchProcessingWorker(QObject):
                 if success:
                     successful_folders += 1
                     logger.info(f"Successfully processed folder: {folder_path}")
+                    # Emit folder results for frame data storage
+                    self.folder_results_ready.emit(i, folder_path, results)
                 else:
                     failed_folders += 1
                     logger.warning(f"Failed to process folder: {folder_path}")
@@ -339,7 +433,9 @@ class BatchProcessingWorker(QObject):
 
             except Exception as e:
                 failed_folders += 1
-                logger.error(f"Error processing folder {folder_path}: {e}")
+                logger.error(
+                    f"Error processing folder {folder_path}: {e}", exc_info=True
+                )
                 self.error_occurred.emit(i, folder_path, str(e))
                 self.folder_completed.emit(i, folder_path, False)
 
@@ -349,28 +445,12 @@ class BatchProcessingWorker(QObject):
         )
         self.all_completed.emit()
 
-    def pause(self):
-        """Pause processing after the current image is complete."""
-        self._pause_mutex.lock()
-        self.is_paused = True
-        self._pause_mutex.unlock()
-        logger.info("Batch processing paused")
-
-    def resume(self):
-        """Resume processing from where it was paused."""
-        self._pause_mutex.lock()
-        self.is_paused = False
-        self._pause_condition.wakeAll()  # Wake up any waiting threads
-        self._pause_mutex.unlock()
-        logger.info("Batch processing resumed")
-
     def stop(self):
         """Stop processing after the current image is complete."""
         # Acquire mutex and wake any waiting pause condition so the
         # worker can notice `should_stop` and exit promptly even if it
         # was paused when the stop was requested.
-        try:
-            self._pause_mutex.lock()
+        with qt_lock(self._pause_mutex):
             self.should_stop = True
             self.is_paused = False  # Also clear pause state when stopping
             # Wake any threads waiting in the pause condition
@@ -380,13 +460,9 @@ class BatchProcessingWorker(QObject):
                 # If wakeAll fails for whatever reason, continue and rely
                 # on the next progress callback check to stop the loop.
                 pass
-        finally:
-            try:
-                self._pause_mutex.unlock()
-            except Exception:
-                pass
 
-        logger.info("Batch processing stop requested")
+        thread_id = threading.get_ident()
+        logger.info(f"[Thread-{thread_id}] Batch processing stop requested")
 
     def _folder_progress_callback(
         self, folder_index, current_folder, total_folders, folder_path, progress, *args
@@ -413,14 +489,25 @@ class BatchProcessingWorker(QObject):
 
         # Forward preview images to the UI if args are provided
         if len(args) >= 4:
-            adv_angles, rec_angles, center_points, result_images = args
+            # Unpack the arguments - now includes result_lists as 5th arg
+            adv_angles = args[0]
+            rec_angles = args[1]
+            center_points = args[2]
+            result_images = args[3]
+            # Extract result_lists if available (5th argument)
+            result_lists = args[4] if len(args) >= 5 else {}
             # Pass the folder index as additional info to know which folder
             # we're processing
             result_images["folder_index"] = folder_index
             result_images["folder_path"] = folder_path
-            # Emit the preview image signal
+            # Emit the preview image signal with result_lists
             self.preview_image_updated.emit(
-                progress, adv_angles, rec_angles, center_points, result_images
+                progress,
+                adv_angles,
+                rec_angles,
+                center_points,
+                result_images,
+                result_lists,
             )
 
         # Return False if processing should stop or pause

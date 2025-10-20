@@ -70,7 +70,7 @@ Droplet Wall Interaction Tool follows a modular architecture:
   Threads/Signals   Data/Params/State   Results/Exports
 ```
 
-The application is organized into core logic (`src/core.py`), UI (`src/widgets.py`), helpers for image processing and analysis (`src/helpers/`), utilities (`src/utilities/` for logging, image ops, overlays, ROI), and background threads (`src/threads.py`).
+The application is organized into core logic (`src/core.py`), UI widgets (`src/gui.py` and `src/widgets/`), helpers for image processing and analysis (`src/helpers/`), utilities (`src/utilities/` for image processing, logging, overlays, ROI management), and background threading (`src/utilities/threading.py`).
 
 ## Image Analysis Pipeline
 

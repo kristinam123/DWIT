@@ -6,19 +6,19 @@ Provides caching, debouncing, and optimized image processing for rapid preview u
 import os
 import threading
 import time
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from src.utilities.image import (
+from src.utilities.core_utils import get_logger
+from src.utilities.image_utils import (
     create_background_image,
     crop_image,
     rotate_image,
     safe_imread,
 )
-from src.utilities.logging_manager import get_logger
 
 logger = get_logger(__name__)
 
@@ -40,7 +40,7 @@ class PreviewCache:
             key_parts.append(f"{k}:{v}")
         return "|".join(key_parts)
 
-    def get(self, folder_path: str, **params) -> Optional[dict[str, Any]]:
+    def get(self, folder_path: str, **params) -> dict[str, Any] | None:
         """Get cached data if available."""
         key = self._generate_key(folder_path, **params)
 
@@ -143,7 +143,7 @@ class OptimizedPreviewGenerator(QObject):
 
     def _get_base_image(
         self, folder_path: str, rotation_angle: float = 0.0
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Get base image with rotation applied and cached."""
         cache_key = f"base_image_rot{rotation_angle}"
         cached = self.cache.get(folder_path, operation=cache_key)
@@ -178,7 +178,7 @@ class OptimizedPreviewGenerator(QObject):
         folder_path: str,
         rotation_angle: float = 0.0,
         crop_params: tuple[int, int, int, int] = (0, 640, 0, 480),
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Get background image with aggressive caching."""
         cache_key = f"background_rot{rotation_angle}_crop{crop_params}"
         cached = self.cache.get(folder_path, operation=cache_key)
@@ -221,7 +221,7 @@ class OptimizedPreviewGenerator(QObject):
         roi_params: tuple[int, int, int, int],
         rotation_angle: float = 0.0,
         analysis_mode: str = "contact_angle",
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Generate ROI preview with caching."""
         left, top, right, bottom = roi_params
 
@@ -265,7 +265,7 @@ class OptimizedPreviewGenerator(QObject):
         rotation_angle: float = 0.0,
         crop_params: tuple[int, int, int, int] = (0, 640, 0, 480),
         analysis_mode: str = "contact_angle",
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Generate threshold preview with caching."""
         cache_key = f"threshold_{threshold}_rot{rotation_angle}_crop{crop_params}"
         cached = self.cache.get(folder_path, operation=cache_key)
@@ -331,11 +331,11 @@ class OptimizedPreviewGenerator(QObject):
         self,
         folder_path: str,
         baseline_offset: int,
-        manual_baseline: Optional[int] = None,
+        manual_baseline: int | None = None,
         rotation_angle: float = 0.0,
         crop_params: tuple[int, int, int, int] = (0, 640, 0, 480),
         analysis_mode: str = "contact_angle",
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """Generate baseline preview with caching."""
         cache_key = (
             f"baseline_{baseline_offset}_{manual_baseline}"
@@ -367,7 +367,7 @@ class OptimizedPreviewGenerator(QObject):
             else:
                 # Use actual baseline detection like in main analysis with
                 # proper cropping
-                from src.helpers.baseline import find_single_baseline
+                from src.utilities.measurement_utils import find_single_baseline
 
                 # Crop to middle 40%-60% width like main analysis does
                 _, w_img = processed_image.shape[:2]
@@ -377,7 +377,7 @@ class OptimizedPreviewGenerator(QObject):
                     :, crop_left_baseline:crop_right_baseline
                 ]
 
-                y1_left, y1_right = find_single_baseline(
+                y1_left, _y1_right = find_single_baseline(
                     cropped_for_baseline, baseline_offset, False, 0
                 )
                 if y1_left is not None:

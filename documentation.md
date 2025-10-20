@@ -12,12 +12,11 @@
 - [Project Structure](#project-structure)
 - [Summary Table: Step Applicability by Mode](#summary-table-step-applicability-by-mode)
 - [References](#references)
-    - [Core Application (`dwit.py`)](#dwitpy)
-    - [Core Modules (`src/core.py`)](#corepy)
-    - [Helper Modules (`src/helpers/*`)](#helper-modules)
-    - [Threading Modules (`src/threads.py`)](#threading-modules)
-    - [Utilities Modules (`src/utilities/*`)](#utilities-modules)
-    - [Widgets Modules (`src/widgets.py`)](#widgets-modules)
+    - [Core Application](#core-application)
+    - [Analysis Modules](#analysis-modules)
+    - [Helper Modules](#helper-modules)
+    - [Utilities Modules](#utilities-modules)
+    - [Widgets Modules](#widgets-modules)
 
 ---
 
@@ -26,6 +25,12 @@
 ### Prerequisites
 - Python 3.10+ (Windows/macOS/Linux)
 - [venv](https://docs.python.org/3/library/venv.html) for virtual environments
+- Required packages (automatically installed via requirements.txt):
+  - PySide6>=6.0.0 (GUI framework)
+  - NumPy>=1.20.0 (numerical computing)
+  - pandas>=1.3.0 (data manipulation)
+  - SciPy>=1.7.0 (scientific computing)
+  - OpenCV-Python>=4.5.0 (computer vision)
 
 ### Installation
 ```sh
@@ -152,22 +157,49 @@ Mode-specific parameter omission:
 ## Project Structure
 
 - Application code
-    - UI: `src/widgets.py` (analysis UI and controls)
+    - Entry point: `dwit.py` (application initialization and lifecycle management)
+    - UI: `src/gui.py` (main analysis GUI) and `src/widgets/` (reusable UI components)
+        - `src/widgets/batch_control_panel.py` (batch processing controls)
+        - `src/widgets/display_panel.py` (image display, slider, stats overlay)
+        - `src/widgets/folder_manager.py` (folder selection and management)
+        - `src/widgets/parameter_panel.py` (parameter input controls)
     - Core: `src/core.py` (analysis engine)
-    - Helpers: `src/helpers/` (baseline, contour, contact angle, intersections, batch, preview, save, velocity, structured_packing, drawing, initialisation)
-    - Threads: `src/threads.py` (background processing)
-    - Utilities: `src/utilities/` (`image.py`, `logging_manager.py`, `overlays.py`, `roi.py`)
+    - Analysis: `src/analysis/` (analysis pipeline and contact angle methods)
+        - `src/analysis/workflow.py` (analysis orchestration)
+        - `src/analysis/processors.py` (image and data processors)
+        - `src/analysis/settings_manager.py` (settings persistence)
+        - `src/analysis/contact_angle/` (contact angle calculation methods)
+            - `arc_method.py` (arc-based calculation)
+            - `tangent_method.py` (tangent-based calculation)
+            - `ellipse_method.py` (ellipse fitting calculation)
+            - `polynomial_method.py` (polynomial fitting calculation)
+    - Helpers: `src/helpers/` (specialized helper functions)
+        - `batch.py` (batch processing helpers)
+        - `contact_detection.py` (contact detection with vertical lines)
+        - `geometry.py` (geometric calculations)
+        - `initialisation.py` (experiment initialization)
+        - `preview.py` (preview utilities)
+        - `save_results.py` (results export to Excel)
+        - `visualisation.py` (visualization and drawing helpers)
+    - Utilities: `src/utilities/` (cross-cutting utilities)
+        - `core_utils.py` (logging and core utilities)
+        - `image_utils.py` (image processing and ROI)
+        - `measurement_utils.py` (measurement calculations, re-exports contact angle methods)
+        - `overlays.py` (LogOverlay, NavigationOverlay)
+        - `preview_optimisation.py` (preview caching)
+        - `processors.py` (batch and results processors)
+        - `threading.py` (background thread management)
 - Data and assets
     - Test images: `tests/` (organized by experiment type)
     - Resources: `resources/` (icons and diagrams like `DWIT.png`, `avt.ico`, `Flowchart_Analysis.png`)
 - Repo & docs
-    - `README.md` (overview and quickstart)
+    - `readme.md` (overview and quickstart)
+    - `documentation.md` (comprehensive documentation)
+    - `paper.md`, `paper.bib` (publication materials)
     - `requirements.txt` (Python dependencies)
     - `pyproject.toml` (tooling config, e.g., Ruff)
-    - `LICENSE`
-    - `CITATION.cff` (how to cite)
-    - `paper.md`, `paper.bib` (publication materials)
-    - `.pre-commit-config.yaml` (optional dev hooks), `.vscode/` (editor settings)
+    - `LICENSE`, `CITATION.cff`
+    - `.pre-commit-config.yaml` (optional dev hooks)
 
 ---
 
@@ -195,61 +227,53 @@ Notes:
 
 # References
 
+This section provides detailed documentation for individual modules and classes.
+
 ## Core Application
 
 ### `dwit.py`
-**File Path**: `/dwit.py`
+**File Path**: `/dwit.py` (root directory)
 
 **Purpose**:
-The main entry point for the Droplet Wall Interaction Tool (DWIT) application. Initializes the Qt application, sets up global exception handling, manages application lifecycle, and handles window state persistence.
+Main application entry point and window management for the Droplet Wall Interaction Tool (DWIT). Implements a sophisticated Qt-based GUI with multiple analysis modes, lazy loading, and comprehensive state management.
 
 **Key Components**:
-1. **Memory Management**:
-   - Implements periodic garbage collection to prevent memory leaks
-   - Uses Python's `gc` module with optimized thresholds
-   - Runs cleanup every 30 seconds
+1. **Main Application Class**:
+   - `DWIT(QMainWindow)`: Main application window with navigation and state management
+   - `CellGUI`: Central GUI controller managing multiple analysis modes
+   - `AnalysisWindow`: Individual analysis mode containers with lazy initialization
 
-2. **Error Handling**:
-   - Global exception handler for uncaught exceptions
-   - Graceful logging of errors before application termination
-   - Attempts to continue running after non-fatal errors
+2. **Architecture Features**:
+   - Multi-mode interface (Free Sedimentation, Contact Angle, Channel, Structured Packing)
+   - Lazy loading for performance optimization
+   - Persistent window state and settings
+   - Comprehensive error handling and logging
+   - Memory management with periodic garbage collection
 
-3. **Application State**:
-   - Saves and restores window geometry and state using QSettings
-   - Manages application metadata (organization and application name)
-   - Handles proper cleanup on application exit
+3. **Navigation System**:
+   - Tabbed interface with mode-specific pages
+   - Persistent page state across application restarts
+   - Real-time mode switching with proper cleanup
 
 **Key Functions**:
-- `cleanup_logging()`: Restores original stdout/stderr streams on exit
-- `setup_memory_management()`: Configures and starts periodic garbage collection
+- `main()`: Application initialization and Qt event loop management
+- `setup_memory_management()`: Configures periodic garbage collection
 - `handle_exception()`: Global exception handler for uncaught exceptions
-- `main()`: Application entry point (wrapped in `if __name__ == "__main__"`)
 
 **Dependencies**:
-- PySide6.QtCore: For QSettings, QTimer
-- PySide6.QtWidgets: For QApplication
-- Standard library: sys, traceback, gc
-
-**Usage Example**:
-```python
-if __name__ == "__main__":
-    dwit = QApplication(sys.argv)
-    dwit.setOrganizationName("Droplet Wall Interaction Tool (DWIT)")
-    dwit.setApplicationName("Droplet Wall Interaction Tool (DWIT)")
-    
-    # ... setup and run application ...
-    
-    sys.exit(dwit.exec())
-```
+- PySide6.QtCore: For QSettings, QTimer, application management
+- PySide6.QtWidgets: For QApplication, main window components
+- PySide6.QtGui: For QIcon and window management
+- Standard library: sys, traceback, gc, os
 
 **Integration**:
-- Initializes the main application window (`DWIT` from `dwit.py`)
-- Integrates with the logging system through `logging_manager`
-- Manages application-wide settings and state
+- Entry point for the entire DWIT application
+- Coordinates all analysis modes and GUI components
+- Manages application lifecycle and state persistence
 
 ---
 
-## Core Modules
+## Analysis Modules
 
 ### `core.py`
 **File Path**: `/src/core.py`
@@ -310,178 +334,39 @@ Examples by mode (result_lists keys):
 - OpenCV, NumPy, PySide6, helpers in `src/helpers/*`, and utilities in `src/utilities/*`.
 
 **Integration**:
-- Consumed by `AnalysisThread` and UI in `widgets.py`; settings persisted via QSettings.
+- Consumed by `AnalysisThread` (from `src/utilities/threading.py`) and UI components in `src/gui.py` and `src/widgets/*`
+- Settings persisted via QSettings through `SettingsManager` in `src/analysis/settings_manager.py`
 
 ---
 
-## Helper Modules
+### Contact Angle Calculation Methods
 
-### `src/helpers/baseline.py`
-**File Path**: `/src/helpers/baseline.py`
+The contact angle calculation methods are located in `src/analysis/contact_angle/` and are re-exported through `src/utilities/measurement_utils.py` for backward compatibility.
 
-**Purpose**:
-Helper module for baseline detection in droplet and experiment analysis. Provides functions to detect and analyze baselines in droplet images, which is crucial for accurate contact angle measurements.
+#### `src/analysis/contact_angle/arc_method.py`
+- `calculate_contact_angles()`: Main function for arc-based contact angle calculation
+- Uses circular arc fitting to determine contact angles
+- Visualizes contact angles with arcs and tangent lines
+- Constant arc radius (RADIUS = 30 pixels)
 
-**Key Functions**:
+#### `src/analysis/contact_angle/ellipse_method.py`
+- `calculate_ellipse_contact_angle()`: Fits an ellipse to droplet contour
+- `calculate_contact_angle_left()`: Calculates left contact angle from ellipse fit
+- `calculate_contact_angle_right()`: Calculates right contact angle from ellipse fit
+- `_fit_ellipse()`: Internal function for ellipse fitting
+- `_ellipse_slope()`: Calculates slope of ellipse at given angle
+- `_calculate_contact_angle()`: Converts slope to contact angle
+- Good for symmetric droplets
 
-#### `find_single_baseline(image, baseline_offset=0, baseline_tf=False, manual_offset=0)`
-Detects the baseline where a droplet sits using multiple detection strategies.
+#### `src/analysis/contact_angle/polynomial_method.py`
+- `fit_left_polynomial()`: Fits polynomial to left contact angle region
+- `fit_right_polynomial()`: Fits polynomial to right contact angle region
+- `rotate_coordinates_90()`: Helper for coordinate transformation
+- Uses polynomial curve fitting for angle determination
 
-**Parameters**:
-- `image`: Input image (numpy array)
-- `baseline_offset`: Manual offset adjustment for baseline (pixels)
-- `baseline_tf`: If True, use manual offset only
-- `manual_offset`: Manual offset value when baseline_tf is True
-
-**Returns**:
-- `tuple[int|None, int|None]`: `(y1_left, y1_right)` baseline y-coordinates, or `(None, None)` if not found
-
-**Features**:
-- Automatic threshold determination
-- Multiple detection strategies (Canny edge detection, Hough transform)
-- Noise reduction with Gaussian blur
-- Adaptive thresholding based on image statistics
-- Scoring system for line selection
-
-**Usage Example**:
-```python
-import cv2
-from src.helpers.baseline import find_single_baseline
-
-# Load image
-image = cv2.imread('droplet.jpg')
-
-# Find baseline
-y_left, y_right = find_single_baseline(
-    image,
-    baseline_offset=5,
-    baseline_tf=False
-)
-
-# Draw baseline on image
-height = image.shape[0]
-cv2.line(image, (0, y_left), (image.shape[1], y_right), (0, 255, 0), 2)
-```
-
-**Notes**:
-- Automatic mode uses Canny + HoughLinesP; favors lower-half, near-horizontal lines; tolerant to slight tilt.
-- Manual mode returns a flat baseline at `img_h - manual_offset`.
-- Baseline may be slightly sloped; downstream uses average y for some steps.
-
-### `src/helpers/batch.py`
-**File Path**: `/src/helpers/batch.py`
-
-**Purpose**:
-Helper module for batch processing of multiple folders in the Droplet Wall Interaction Tool. Provides UI components and worker threads for processing multiple experiments in sequence.
-
-**Key Components**:
-
-#### `FolderItemDelegate` Class
-Custom delegate for rendering folder items with progress bars in the batch processing UI.
-
-**Key Features**:
-- Visual progress indication for batch processing
-- Support for main folder highlighting
-- Error state visualization
-- Custom styling with RWTH blue theme
-
-**Methods**:
-- `set_progress(row, progress_value)`: Update progress for a specific row
-- `size_hint()`: Provide size hints for item rendering
-
-**Usage Example**:
-```python
-# Create and configure the delegate
-delegate = FolderItemDelegate()
-list_view.setItemDelegate(delegate)
-
-# Update progress for an item
-delegate.set_progress(row_index, 75)  # 75% complete
-```
-
-#### `BatchProcessingWorker` Class
-Worker thread for processing multiple folders in a batch.
-
-**Key Features**:
-- Background processing of multiple experiment folders
-- Progress tracking and reporting
-- Pause/resume functionality
-- Error handling and recovery
-
-**Signals**:
-- `progress_updated`: Emitted when progress updates for a folder
-- `folder_completed`: Emitted when a folder is fully processed
-- `all_completed`: Emitted when all folders are processed
-- `error_occurred`: Emitted when an error occurs
-- `overall_progress_updated`: Emitted with overall progress
-- `preview_image_updated`: Emitted when preview images are available
-
-**Methods**:
-- `process_folders()`: Main method to start batch processing
-- `pause()`: Pause the batch processing
-- `resume()`: Resume processing
-- `stop()`: Stop processing
-- `_folder_progress_callback()`: Internal callback for progress updates
-
-**Dependencies**:
-- PySide6 for GUI components
-- Custom controller for experiment management
-- Threading for background processing
-
-**Integration**:
-- Works with the main application's batch processing UI
-- Coordinates with experiment controller for processing
-- Provides real-time feedback to the user interface
-
-**Maintenance Notes**:
-- Ensure thread safety for all operations
-- Handle resource cleanup properly
-- Add logging for debugging
-- Consider adding more detailed progress reporting
-- Test with large numbers of folders
-
----
-
-### `src/helpers/contact_angle.py`
-**File Path**: `/src/helpers/contact_angle.py`
-
-**Purpose**:
-Core module for contact angle calculation in the Droplet Wall Interaction Tool. Implements multiple methods for calculating contact angles from droplet images, including arc, tangent, and ellipse fitting methods.
-
-**Key Components**:
-
-#### Contact Angle Calculation Methods
-
-1. **Arc Method**
-   - `calculate_contact_angles()`: Main function for arc-based contact angle calculation
-   - Uses circular arc fitting to determine contact angles
-   - Visualizes contact angles with arcs and tangent lines
-
-2. **Tangent Method**
-   - `calculate_tangent_contact_angles()`: Calculates contact angles using tangent method
-   - Fits tangents to droplet contour at contact points
-   - Handles both vertical and non-vertical tangents
-
-3. **Ellipse Fitting**
-   - `calculate_ellipse_contact_angle()`: Fits an ellipse to droplet contour
-   - `_fit_ellipse()`: Internal function for ellipse fitting
-   - `_ellipse_slope()`: Calculates slope of ellipse at given angle
-   - `_calculate_contact_angle()`: Converts slope to contact angle
-
-4. **Polynomial Fitting**
-   - `fit_left_polynomial()`: Fits polynomial to left contact angle region
-   - `fit_right_polynomial()`: Fits polynomial to right contact angle region
-   - `rotate_coordinates_90()`: Helper for coordinate transformation
-
-**Key Functions**:
-
-#### `calculate_contact_angles()`
-Calculates contact angles using the arc method.
-
-**Parameters**:
+**Common Parameters** (for `calculate_contact_angles()` and similar):
 - `cols`: Image width
 - `shifted_points`: Contour data points
-- `shifted_x`, `shifted_y`: Contour x/y coordinates (not used by arc method but kept for API parity)
 - `intersection_points`: Detected intersection points with baseline
 - `y1_left`, `y1_right`: Baseline y-coordinates
 - `img`: Processed image
@@ -497,25 +382,10 @@ Calculates contact angles using the arc method.
 **Returns**:
 - `tuple`: (advancing_angles, receding_angles, angle_img)
 
-#### `calculate_tangent_contact_angles()`
-Calculates contact angles using the tangent method.
-
-**Parameters**:
-- `cols`: Image width
-- `shifted_points`: List of shifted contour points
-- `shifted_x`, `shifted_y`: X/Y of shifted contour points
-- `intersection_points`: Detected intersection points
-- `y1_left`, `y1_right`: Baseline y-coordinates
-- `img`: Processed image
-- `filename`: Current image filename
-- `output_path`: Output directory
-- `advancing_contact_angles`, `receding_contact_angles`: Optional angle lists
-- `q`: Current image index (default: 0)
-- `result_images`: Optional dict to store visualization images
-- `save_files`: Whether to save intermediate outputs
-
-**Returns**:
-- `tuple`: (advancing_angles, receding_angles, angle_img)
+**Integration**:
+- Called by analysis pipeline in `src/analysis/processors.py` and `src/core.py`
+- Method selection controlled by `fitting_mode` parameter in `AnalysisCore`
+- Visualization output integrated with result display system
 
 #### `calculate_ellipse_contact_angle()`
 Calculates contact angle using ellipse fitting.
@@ -542,6 +412,18 @@ Calculates contact angle using ellipse fitting.
 
 **Usage Example**:
 ```python
+# Import from measurement_utils (re-exports from contact_angle/)
+from src.utilities.measurement_utils import (
+    calculate_contact_angles,
+    calculate_tangent_contact_angles,
+    calculate_ellipse_contact_angle,
+)
+
+# Or import directly from source modules
+from src.analysis.contact_angle.arc_method import calculate_contact_angles
+from src.analysis.contact_angle.tangent_method import calculate_tangent_contact_angles
+from src.analysis.contact_angle.ellipse_method import calculate_ellipse_contact_angle
+
 # Calculate contact angles using arc method
 advancing_angles, receding_angles, vis_img = calculate_contact_angles(
     cols=image_width,
@@ -578,25 +460,142 @@ contact_angle = calculate_ellipse_contact_angle(
 
 ---
 
-### `src/helpers/contact_detection.py`
+#### `src/analysis/contact_angle/tangent_method.py`
+- `calculate_tangent_contact_angles()`: Calculates contact angles using tangent method
+- Fits tangents to droplet contour at contact points
+- Handles both vertical and non-vertical tangents
+- More sensitive to contour noise than arc method
+
+**Note on Imports:** All contact angle calculation functions can be imported from either their original location in `src/analysis/contact_angle/` or from `src/utilities/measurement_utils.py`, which re-exports them for backward compatibility and convenience.
+
+### `processors.py`
+**File Path**: `/src/analysis/processors.py`
+
+**Purpose**:
+Provides specialized processors for different stages of the analysis pipeline, including image processing, contact angle calculations, and visualization generation.
+
+**Key Classes**:
+- `ImageProcessor`: Handles image preprocessing (rotation, cropping, background removal, thresholding)
+- `ContactAngleProcessor`: Manages contact angle calculations using different methods (arc, tangent, ellipse, polynomial)
+- `VisualizationProcessor`: Creates visualization overlays for results
+
+**Integration**:
+- Used by `AnalysisCore` in the main processing pipeline
+- Coordinates with `src/analysis/workflow.py` for orchestration
+
+### `settings_manager.py`
+**File Path**: `/src/analysis/settings_manager.py`
+
+**Purpose**:
+Manages persistent settings storage and retrieval for analysis parameters using Qt's QSettings. Handles mode-specific settings with proper namespacing.
+
+**Key Features**:
+- Per-mode settings isolation using QSettings groups
+- Automatic loading and saving of analysis parameters
+- Default value management
+- Type-safe parameter handling
+
+**Integration**:
+- Used by `AnalysisCore` for settings persistence
+- Coordinates with Qt's QSettings for cross-platform storage
+
+### `workflow.py`
+**File Path**: `/src/analysis/workflow.py`
+
+**Purpose**:
+Orchestrates the analysis workflow by managing file handling, pipeline execution, and results assembly.
+
+**Key Classes**:
+- `FileHandler`: Manages file operations and path handling
+- `Pipeline`: Orchestrates the analysis pipeline steps
+- `ResultsAssembler`: Assembles and structures analysis results
+
+**Integration**:
+- Used by `AnalysisCore` to coordinate the analysis process
+- Works with processors for step-by-step execution
+
+## Helper Modules
+
+### `batch.py`
+**File Path**: `/src/helpers/batch.py`
+
+**Purpose**:
+Helper module for batch processing of multiple folders in the Droplet Wall Interaction Tool. Provides UI components and worker threads for processing multiple experiments in sequence.
+
+**Key Components**:
+
+#### `FolderItemDelegate` Class
+Custom delegate for rendering folder items with progress bars in the batch processing UI.
+
+**Key Features**:
+- Visual progress indication for batch processing
+- Support for main folder highlighting
+- Error state visualization
+- Custom styling with RWTH blue theme
+
+**Methods**:
+- `set_progress(folder_path, progress_value)`: Update progress for a specific folder
+- `size_hint(option, index)`: Provide size hints for item rendering
+
+**Usage Example**:
+```python
+# Create and configure the delegate
+delegate = FolderItemDelegate()
+list_view.setItemDelegate(delegate)
+
+# Update progress for an item
+delegate.set_progress(folder_path, 75)  # 75% complete
+```
+
+#### `BatchProcessingWorker` Class
+Worker thread for processing multiple folders in a batch.
+
+**Key Features**:
+- Background processing of multiple experiment folders
+- Progress tracking and reporting
+- Pause/resume functionality
+- Error handling and recovery
+
+**Signals**:
+- `progress_updated`: Emitted when progress updates for a folder
+- `folder_completed`: Emitted when a folder is fully processed
+- `all_completed`: Emitted when all folders are processed
+- `error_occurred`: Emitted when an error occurs
+- `overall_progress_updated`: Emitted with overall progress
+- `preview_image_updated`: Emitted when preview images are available
+
+**Methods**:
+- `process_folders()`: Main method to start batch processing
+- `resume()`: Resume processing
+- `stop()`: Stop processing
+- `_folder_progress_callback()`: Internal callback for progress updates
+
+**Dependencies**:
+- PySide6 for GUI components
+- Custom controller for experiment management
+- Threading for background processing
+
+**Integration**:
+- Works with the main application's batch processing UI
+- Coordinates with experiment controller for processing
+- Provides real-time feedback to the user interface
+
+**Maintenance Notes**:
+- Ensure thread safety for all operations
+- Handle resource cleanup properly
+- Add logging for debugging
+- Consider adding more detailed progress reporting
+- Test with large numbers of folders
+
+---
+
+### `contact_detection.py`
 **File Path**: `/src/helpers/contact_detection.py`
 
 **Purpose**:
 Helper module for detecting and visualizing contact points between droplets and vertical boundaries in the Droplet Wall Interaction Tool. Provides functionality to detect when a droplet makes contact with vertical boundaries and visualize these contact events.
 
 **Key Functions**:
-
-#### `detect_vertical_line_contact(contour, vertical_left, vertical_right, contact_threshold=3)`
-Detects if a contour makes contact with vertical boundary lines.
-
-**Parameters**:
-- `contour`: The contour to check for contact (numpy array of points)
-- `vertical_left`: Tuple of (x1, y1, x2, y2) for left boundary line
-- `vertical_right`: Tuple of (x1, y1, x2, y2) for right boundary line
-- `contact_threshold`: Distance threshold in pixels for contact detection (default: 3)
-
-**Returns**:
-- `tuple[bool, bool]`: (left_contact, right_contact) indicating contact with each boundary
 
 #### `get_contact_frame_status(left_contact_frame, right_contact_frame)`
 Generates a status string describing the current contact state.
@@ -608,24 +607,7 @@ Generates a status string describing the current contact state.
 **Returns**:
 - `str`: Human-readable status string
 
-#### `draw_contact_indicators(image, vertical_left, vertical_right, left_contact, right_contact, left_contact_frame=None, right_contact_frame=None, current_frame=0)`
-Draws visual indicators for contact detection on an image.
-
-**Parameters**:
-- `image`: Image to draw on (numpy array)
-- `vertical_left`: Left boundary line coordinates (x1, y1, x2, y2)
-- `vertical_right`: Right boundary line coordinates (x1, y1, x2, y2)
-- `left_contact`: Boolean indicating current left contact
-- `right_contact`: Boolean indicating current right contact
-- `left_contact_frame`: Frame number of first left contact (optional)
-- `right_contact_frame`: Frame number of first right contact (optional)
-- `current_frame`: Current frame number (default: 0)
-
-**Returns**:
-- Modified image with visual indicators
-
 **Internal Helper Functions**:
-- `_check_single_line_contact()`: Checks contact with a single vertical line
 - `_prepare_contour_points()`: Prepares contour points for processing
 
 **Dependencies**:
@@ -640,36 +622,6 @@ Draws visual indicators for contact detection on an image.
 
 **Usage Example**:
 ```python
-# Define boundary lines
-left_line = (100, 0, 100, 480)   # x1, y1, x2, y2
-right_line = (540, 0, 540, 480)  # x1, y1, x2, y2
-
-# Detect contact
-left_contact, right_contact = detect_vertical_line_contact(
-    contour=droplet_contour,
-    vertical_left=left_line,
-    vertical_right=right_line,
-    contact_threshold=3
-)
-
-# Update contact frame counters
-if left_contact and left_contact_frame is None:
-    left_contact_frame = current_frame
-if right_contact and right_contact_frame is None:
-    right_contact_frame = current_frame
-
-# Draw indicators
-frame = draw_contact_indicators(
-    image=frame,
-    vertical_left=left_line,
-    vertical_right=right_line,
-    left_contact=left_contact,
-    right_contact=right_contact,
-    left_contact_frame=left_contact_frame,
-    right_contact_frame=right_contact_frame,
-    current_frame=current_frame
-)
-
 # Get status message
 status = get_contact_frame_status(left_contact_frame, right_contact_frame)
 print(f"Status: {status}")
@@ -684,272 +636,36 @@ print(f"Status: {status}")
 
 ---
 
-### `src/helpers/contour.py`
-**File Path**: `/src/helpers/contour.py`
+### `geometry.py`
+**File Path**: `/src/helpers/geometry.py`
 
 **Purpose**:
-Helper module for contour processing and analysis in the Droplet Wall Interaction Tool. Provides functionality for contour manipulation, filtering, and analysis with respect to baseline and boundaries.
+Comprehensive geometric calculations and contour processing for droplet analysis. Provides functions for intersection detection, contour filtering, area calculations, and shape processing.
 
 **Key Functions**:
+- `find_intersection_points()`: Finds intersection points between droplet contour and baseline
+- `calculate_drop_area()`: Calculates droplet area with handling for open/closed contours
+- `process_contour()`: Processes contour data for analysis
 
-#### `calculate_drop_area(y1_left, y1_right, intersection_points, cnt, img, center_points_px, center_points_mm, q, result_images, result_lists, pixel)`
-Processes drop area and calculates center point and other geometric properties.
-
-**Parameters**:
-- `y1_left`, `y1_right`: Y-coordinates of baseline edges
-- `intersection_points`: Points where contour intersects with baseline
-- `cnt`: Contour data
-- `img`: Image for visualization
-- `center_points_px`: List to store center points in pixels
-- `center_points_mm`: List to store center points in millimeters
-- `q`: Current frame index
-- `result_images`: Dictionary to store result images
-- `result_lists`: Dictionary to store analysis results
-- `pixel`: Pixels per millimeter conversion factor
-
-**Returns**:
-- `tuple`: (center_point_px, center_point_mm)
-
-#### `process_contour(contour, cnt_x, cnt_y, x_left_cnt, y_left_cnt, x_right_cnt, y_right_cnt, line_y, cnt_x_neu, cnt_y_neu, q=0)`
-Processes contour to separate left and right sides and calculate mean X value.
-
-**Parameters**:
-- `contour`: Input contour array
-- `cnt_x`, `cnt_y`: Lists to store contour coordinates
-- `x_left_cnt`, `y_left_cnt`: Lists to store left contour points
-- `x_right_cnt`, `y_right_cnt`: Lists to store right contour points
-- `line_y`: Y-coordinate of baseline
-- `cnt_x_neu`, `cnt_y_neu`: Lists to store processed contour points
-- `q`: Current frame index (default: 0)
-
-**Returns**:
-- `tuple`: (x_mean, x_left_cnt, y_left_cnt, x_right_cnt, y_right_cnt)
-
-#### `filter_contour_by_baseline_slope(contour, y1_left, y1_right)`
-Filters contour to remove points below baseline slope.
-
-**Parameters**:
-- `contour`: Input contour to filter
-- `y1_left`: Y-coordinate at left edge of baseline
-- `y1_right`: Y-coordinate at right edge of baseline
-
-**Returns**:
-- `numpy.ndarray`: Filtered contour
-
-#### `crop_contour_points(x_left, y_left, x_right, y_right, threshold_y)`
-Crops contour points above a certain Y threshold.
-
-**Parameters**:
-- `x_left`, `y_left`: Left contour coordinates
-- `x_right`, `y_right`: Right contour coordinates
-- `threshold_y`: Y threshold for cropping
-
-**Returns**:
-- `tuple`: Cropped coordinates (x_left, y_left, x_right, y_right)
-
-**Internal Helper Functions**:
-- `_calculate_center_point()`: Calculates center point from contour moments
-- `_visualize_center_point()`: Draws center point and baseline on image
-- `_calculate_area_between_intersections()`: Calculates area between intersection points
-- `_calculate_left_extension_area()`: Calculates left extension area
-- `_calculate_right_extension_area()`: Calculates right extension area
-- `_prepare_contour_points()`: Converts contour to standard format
-- `_calculate_baseline_slope()`: Calculates baseline slope and parameters
-- `_calculate_baseline_y()`: Calculates Y-coordinate on baseline for given X
-- `_calculate_intersection_point()`: Finds intersection between line segment and baseline
-- `_find_contour_baseline_intersections()`: Finds all intersections between contour and baseline
-- `_create_filtered_contour()`: Creates filtered contour from segments above baseline
-
-**Dependencies**:
-- OpenCV for contour processing
-- NumPy for numerical operations
-- Custom logging utilities
+**Features**:
+- Robust intersection detection with multiple fallback methods
+- Area calculations with special handling for incomplete contours
+- Contour filtering and cropping for different analysis modes
+- Visualization support for debugging and result overlays
 
 **Integration**:
-- Used by analysis pipeline for contour processing
-- Integrates with contact angle calculation
-- Works with visualization system
-- Processes data for center point and area calculations
+- Used extensively by `AnalysisCore` for droplet geometry analysis
+- Works with OpenCV contour data structures
+- Provides foundation for contact angle and measurement calculations
 
-**Usage Example**:
-```python
-# Process contour and separate left/right sides
-x_mean, x_left, y_left, x_right, y_right = process_contour(
-    contour=contour,
-    cnt_x=[],
-    cnt_y=[],
-    x_left_cnt=[],
-    y_left_cnt=[],
-    x_right_cnt=[],
-    y_right_cnt=[],
-    line_y=baseline_y,
-    cnt_x_neu=[],
-    cnt_y_neu=[]
-)
-
-# Filter contour using baseline slope
-filtered_contour = filter_contour_by_baseline_slope(
-    contour=contour,
-    y1_left=left_y,
-    y1_right=right_y
-)
-
-# Crop contour points above threshold
-x_left, y_left, x_right, y_right = crop_contour_points(
-    x_left=x_left,
-    y_left=y_left,
-    x_right=x_right,
-    y_right=y_right,
-    threshold_y=100
-)
-```
-
-**Maintenance Notes**:
-- Ensure proper handling of different contour formats
-- Add validation for input parameters
-- Document any changes to contour processing logic
-- Optimize performance for real-time processing
-- Add unit tests for different contour shapes and baselines
+**Dependencies**:
+- OpenCV (cv2) for contour operations
+- NumPy for numerical calculations
+- Custom logging utilities
 
 ---
 
-### `src/helpers/drawing.py`
-**File Path**: `/src/helpers/drawing.py`
-
-**Purpose**:
-Helper module for drawing and visualization in the Droplet Wall Interaction Tool. Provides functions for rendering various visual elements like baselines, intersection points, connection lines, and interaction zones on images.
-
-**Key Functions**:
-
-#### `draw_dual_baselines(img, y1_left, y1_right, color1=(0, 255, 0), color2=(0, 0, 255), thickness=4)`
-Draws two horizontal baselines on an image with optional outlines.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `y1_left`, `y1_right`: Y-coordinates for the left and right baselines
-- `color1`, `color2`: BGR tuples for baseline colors (default: green and red)
-- `thickness`: Line thickness in pixels (default: 4)
-
-#### `draw_axis_line(img, y, color=(255, 255, 0), thickness=1)`
-Draws a horizontal axis line at the specified y-coordinate.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `y`: Y-coordinate for the axis line
-- `color`: BGR color tuple (default: cyan)
-- `thickness`: Line thickness in pixels (default: 1)
-
-#### `draw_intersection_points(img, points, y1_left, y1_right, mode="channel")`
-Draws intersection points on the image, colored by proximity to baselines.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `points`: List of (x,y) intersection points
-- `y1_left`, `y1_right`: Y-coordinates of the baselines
-- `mode`: Drawing mode ("channel" or other)
-
-**Returns**:
-- `tuple`: (upper_points, lower_points) - Lists of points above and below the baseline
-
-#### `draw_connection_line(img, p1, p2, color=(0, 255, 0), thickness=2)`
-Draws a line connecting two points on the image.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `p1`, `p2`: (x,y) tuples for start and end points
-- `color`: BGR color tuple (default: green)
-- `thickness`: Line thickness in pixels (default: 2)
-
-#### `draw_rectangle(img, x, y, w, h, color=(0, 0, 255), thickness=2)`
-Draws a rectangle on the image.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `x`, `y`: Top-left corner of the rectangle
-- `w`, `h`: Width and height of the rectangle
-- `color`: BGR color tuple (default: red)
-- `thickness`: Border thickness in pixels (default: 2)
-
-#### `draw_center_point(img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickness=2)`
-Draws a center point with crosshairs on the image.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `cx`, `cy`: Center point coordinates
-- `color`: BGR color tuple (default: red)
-- `crosshair_size`: Size of the crosshair in pixels (default: 20)
-- `thickness`: Line thickness in pixels (default: 2)
-
-#### `highlight_interaction_zone(img, contour, y, zone=10, color=[0, 255, 255])`
-Highlights the interaction zone around a specified y-coordinate.
-
-**Parameters**:
-- `img`: Target image (numpy array)
-- `contour`: Contour to analyze
-- `y`: Y-coordinate of the interaction zone
-- `zone`: Vertical range around y to highlight (default: 10 pixels)
-- `color`: BGR color tuple (default: yellow)
-
-**Dependencies**:
-- OpenCV for image drawing operations
-- NumPy for numerical operations
-- Custom logging utilities
-
-**Integration**:
-- Used by visualization components for rendering analysis results
-- Integrates with the main application's display system
-- Works with contour processing and analysis modules
-
-**Usage Example**:
-```python
-# Draw dual baselines
-draw_dual_baselines(
-    img=frame,
-    y1_left=baseline_y - 10,
-    y1_right=baseline_y + 10,
-    color1=(0, 255, 0),  # Green
-    color2=(0, 0, 255)   # Red
-)
-
-# Draw intersection points
-upper_pts, lower_pts = draw_intersection_points(
-    img=frame,
-    points=intersection_points,
-    y1_left=baseline_y - 10,
-    y1_right=baseline_y + 10,
-    mode="channel"
-)
-
-# Draw center point with crosshairs
-draw_center_point(
-    img=frame,
-    cx=center_x,
-    cy=center_y,
-    color=(0, 0, 255),  # Red
-    crosshair_size=20,
-    thickness=2
-)
-
-# Highlight interaction zone
-highlight_interaction_zone(
-    img=frame,
-    contour=droplet_contour,
-    y=interaction_y,
-    zone=15,
-    color=[0, 255, 255]  # Yellow
-)
-```
-
-**Maintenance Notes**:
-- Ensure proper handling of different image formats and color spaces
-- Add input validation for coordinates and parameters
-- Document any changes to drawing styles or visual elements
-- Consider adding more visualization options if needed
-- Optimize drawing performance for real-time display
-
----
-
-### `src/helpers/initialisation.py`
+### `initialisation.py`
 **File Path**: `/src/helpers/initialisation.py`
 
 **Purpose**:
@@ -1076,194 +792,7 @@ Extracts the numerical part from an image filename with improved error handling.
 
 ---
 
-### `src/helpers/intersection.py`
-**File Path**: `/src/helpers/intersection.py`
-
-**Purpose**:
-Helper module for detecting and analyzing intersections between droplet contours and baselines in the Droplet Wall Interaction Tool. Provides functionality for finding intersection points, calculating tangent points, and analyzing droplet geometry.
-
-**Key Functions**:
-
-#### `find_intersection_points(y1_left, y1_right, src, threshold=50, q=0, contours=None, pixel=1.0)`
-Finds intersection points between a baseline and droplet contours.
-
-**Parameters**:
-- `y1_left`: Y-coordinate of the left baseline point
-- `y1_right`: Y-coordinate of the right baseline point
-- `src`: Source image for processing
-- `threshold`: Threshold value for image processing (default: 50)
-- `q`: Quality parameter (default: 0)
-- `contours`: Pre-detected contours (optional)
-- `pixel`: Pixel scaling factor (default: 1.0)
-
-**Returns**:
-- `tuple`: (intersection_points, img, cnt, shifted_points, shifted_x, shifted_y)
-
-**Internal Helper Functions**:
-
-##### `_setup_intersection_analysis(src, y1_left, y1_right)`
-Sets up the intersection analysis with input validation and baseline calculation.
-
-##### `_get_or_detect_contours(src, contours, threshold, pixel)`
-Retrieves existing contours or detects new ones from the image.
-
-##### `_detect_contours_from_image(src, threshold, pixel)`
-Detects and filters contours from the source image.
-
-##### `_filter_contours_by_size(all_contours, pixel)`
-Filters contours based on size constraints (1-7mm).
-
-##### `_find_baseline_intersections(contours, baseline_y, vis_img)`
-Finds intersection points between the largest contour and baseline.
-
-##### `_find_intersection_coordinates(contour_points, baseline_y)`
-Finds left and right intersection coordinates with the baseline.
-
-##### `_process_baseline_proximity_points(near_baseline_points, contour_points, baseline_y)`
-Processes points found near the baseline to determine intersections.
-
-##### `_find_baseline_crossings(contour_points, baseline_y, left_x)`
-Finds baseline crossings when only one proximity point exists.
-
-##### `_fallback_intersection_method(contour_points, baseline_y)`
-Fallback method that projects contour points onto the baseline.
-
-##### `_create_intersection_points(left_x, right_x, baseline_y, vis_img)`
-Creates and visualizes the final intersection points.
-
-##### `_calculate_shifted_points(intersection_points, cnt, baseline_y, vis_img, w)`
-Calculates shifted points for tangent line analysis.
-
-##### `_calculate_shift_distance(cnt, baseline_y, point_index)`
-Calculates the shift distance based on contour size.
-
-##### `_find_best_shifted_x(contour_points, x, y_shifted, point_index, w)`
-Finds the best x-coordinate for a shifted point.
-
-##### `_interpolate_shifted_x(contour_points, x, y_shifted, point_index)`
-Interpolates x-coordinate when no close contour point is found.
-
-**Dependencies**:
-- OpenCV for image processing and contour analysis
-- NumPy for numerical operations
-- Custom logging utilities
-
-**Integration**:
-- Used in the analysis pipeline for droplet geometry analysis
-- Integrates with contour detection and processing modules
-- Works with visualization components for result display
-
-**Usage Example**:
-```python
-# Find intersection points between baseline and droplet
-intersection_points, vis_img, contour, shifted_points, shifted_x, shifted_y = find_intersection_points(
-    y1_left=baseline_y - 10,
-    y1_right=baseline_y + 10,
-    src=image,
-    threshold=50,
-    pixel=pixel_conversion
-)
-
-# Visualize results
-cv2.circle(vis_img, (int(intersection_points[0][0]), int(intersection_points[0][1])), 5, (0, 255, 0), -1)  # Left point
-cv2.circle(vis_img, (int(intersection_points[1][0]), int(intersection_points[1][1])), 5, (0, 255, 0), -1)  # Right point
-
-# Draw shifted points for tangent analysis
-for point in shifted_points:
-    if point is not None:
-        cv2.circle(vis_img, (int(point[0]), int(point[1])), 3, (255, 0, 0), -1)
-```
-
-**Details**:
-- Valid contours filtered by width (1–7 mm using `pixel`).
-- Baseline y is average of `y1_left` and `y1_right` and drawn on `vis_img`.
-- If no near-baseline points, falls back to segment-crossing or projection methods.
-- Shifted points are placed above the baseline with adaptive vertical offset; x chosen by nearest contour point or interpolation.
-
-**Maintenance Notes**:
-- Ensure robust handling of various contour shapes and sizes
-- Add validation for input parameters
-- Document any changes to intersection detection algorithms
-- Consider adding support for non-horizontal baselines
-- Optimize performance for real-time processing
-- Add unit tests for different intersection scenarios
-
----
-
-### `src/helpers/structured_packing.py`
-**File Path**: `/src/helpers/structured_packing.py`
-
-**Purpose**:
-Helper module for detecting and analyzing structured packing in droplet interaction experiments. Provides functionality to identify vertical boundaries of packing material in images.
-
-**Key Functions**:
-
-#### `find_vertical_lines(image)`
-Finds two vertical lines representing the edges of a structured packing in an image.
-
-**Parameters**:
-- `image`: Input image (numpy array) containing the packing material
-
-**Returns**:
-- `tuple`: ((x1_left, y1_left, x2_left, y2_left), (x1_right, y1_right, x2_right, y2_right))
-  - Left and right vertical line coordinates as tuples of (x1, y1, x2, y2)
-  - Returns (None, None) if no packing is detected
-
-**Algorithm**:
-1. Converts the image to grayscale if it's in color
-2. Applies Gaussian blur to reduce noise
-3. Uses binary thresholding to highlight dark packing against a white background
-4. Finds contours of the packing material
-5. Identifies the leftmost and rightmost points of the largest contour
-6. Adds a 1-pixel offset to place lines just outside the packing
-7. Returns vertical lines spanning the full height of the image
-
-**Dependencies**:
-- OpenCV for image processing
-- NumPy for array operations
-- Custom logging utilities
-
-**Integration**:
-- Used in the analysis pipeline for packing boundary detection
-- Integrates with the main application's image processing workflow
-- Works with visualization components for result display
-
-**Usage Example**:
-```python
-# Load an image containing structured packing
-image = cv2.imread("packing_image.jpg")
-
-# Find vertical lines representing packing boundaries
-left_line, right_line = find_vertical_lines(image)
-
-if left_line is not None and right_line is not None:
-    # Draw the detected lines on the image
-    cv2.line(image, (left_line[0], left_line[1]), 
-             (left_line[2], left_line[3]), (0, 255, 0), 2)
-    cv2.line(image, (right_line[0], right_line[1]), 
-             (right_line[2], right_line[3]), (0, 255, 0), 2)
-    
-    # Display the result
-    cv2.imshow("Packing Boundaries", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-else:
-    print("No packing detected in the image")
-```
-
-**Maintenance Notes**:
-- The function assumes the packing is darker than the background
-- The 1-pixel offset places lines just outside the packing boundaries
-- May need adjustment for different lighting conditions or packing materials
-- Add validation for input image format and size
-- Consider adding support for non-vertical packing boundaries
-- Add unit tests with various packing images
-- Document any changes to the detection algorithm
-- Optimize performance for high-resolution images
-
----
-
-### `src/helpers/preview.py`
+### `preview.py`
 **File Path**: `/src/helpers/preview.py`
 
 **Purpose**:
@@ -1341,7 +870,7 @@ show_preview(pixmap, parent_widget)
 
 ---
 
-### `src/helpers/save_results.py`
+### `save_results.py`
 **File Path**: `/src/helpers/save_results.py`
 
 **Purpose**:
@@ -1424,140 +953,23 @@ save_results('trial_folder', times, result_lists)  # Excel will be saved to 'tri
 
 ---
 
-### `src/helpers/velocity.py`
-**File Path**: `/src/helpers/velocity.py`
+### `visualisation.py`
+**File Path**: `/src/helpers/visualisation.py`
 
 **Purpose**:
-Helper module for calculating velocities of droplets from center point data in the Droplet Wall Interaction Tool. Handles various input formats and provides robust error handling for invalid data.
+Drawing and visualization utilities for experiment visualization in Droplet Wall Interaction Tool. Contains visualization utilities extracted from core.py to improve code organization and maintainability.
 
 **Key Functions**:
-
-#### `calculate_velocities(center_points_px, pixel=None, fps=None, time_values=None, velocities=None)`
-Main function to calculate velocities from center point data.
-
-**Parameters**:
-- `center_points_px`: List of center points in pixels
-- `pixel`: Pixels per mm conversion factor (default: 1.0)
-- `fps`: Frames per second (used when time_values not provided)
-- `time_values`: Optional list of timestamps for each frame
-- `velocities`: Optional pre-existing velocity list to append to
-
-**Returns**:
-- List of velocities in mm/s
-
-**Features**:
-- Handles various input formats for center points
-- Converts pixel coordinates to real-world units
-- Supports both fixed FPS and custom time values
-- Includes comprehensive input validation
-- Gracefully handles missing or invalid data points
-
-**Internal Helper Functions**:
-
-##### `_validate_inputs(center_points_px, pixel, fps, time_values, velocities)`
-Validates and prepares input parameters for velocity calculation.
-
-##### `_normalize_points(center_points_px)`
-Normalizes center points to ensure consistent format and handles invalid data.
-
-##### `_calculate_point_velocity(prev_point, curr_point, pixel, time_diff)`
-Calculates velocity between two consecutive points.
-
-##### `_ensure_complete_velocity_list(velocities, target_length)`
-Ensures the velocity list matches the required length.
-
-**Dependencies**:
-- NumPy for numerical operations
-- Custom logging utilities
+- `draw_intersection_points_and_angles()`: Draws intersection points and contact angle lines
+- `draw_filled_contour()`: Draws filled contours on images
+- `draw_rectangle()`: Draws bounding rectangles
+- `draw_center_point()`: Draws center point markers
+- Additional helper functions for overlays and annotations
 
 **Integration**:
-- Works with the main analysis pipeline
-- Processes data from contour detection
-- Provides input for trajectory analysis
-
-**Usage Example**:
-```python
-# Example usage of calculate_velocities
-import numpy as np
-
-# Sample center points (x, y) in pixels
-center_points = [(i, i**2) for i in range(100)]
-
-# Calculate velocities with 100 pixels/mm and 30 fps
-velocities = calculate_velocities(
-    center_points_px=center_points,
-    pixel=100.0,  # 100 pixels per mm
-    fps=30.0      # 30 frames per second
-)
-
-# Print the first 5 velocity values
-print(f"First 5 velocities: {velocities[:5]} mm/s")
-```
-
-**Maintenance Notes**:
-- The function assumes linear motion between frames
-- Add support for different motion models if needed
-- Consider adding smoothing for noisy velocity data
-- Add unit tests for edge cases and error conditions
-- Document any changes to the velocity calculation algorithm
-- Optimize for real-time processing if needed
-- Consider adding support for 3D coordinates
-
----
-
-## Threading Modules
-
-### `src/threads.py`
-**File Path**: `/src/threads.py`
-
-**Purpose**:
-Provides a QThread implementation for running image analysis operations in a background thread, allowing for responsive UI during processing.
-
-**Key Classes**:
-
-#### `AutomatisationThread(QThread)`
-Thread for running automation tasks.
-
-**Signals**:
-- `prompt_signal(message)`: Emits status messages
-- `progress_signal(progress)`: Emits progress updates
-
-**Methods**:
-- `run()`: Main thread execution method
-
-#### `AnalysisThread(QThread)`
-Thread class for running analysis operations asynchronously.
-
-**Signals**:
-- `progress_signal(progress, advancing_contact_angles, receding_contact_angles, center_points_px, result_images)`: Emitted during analysis to report progress (signature: float, list, list, list, dict)
-- `finished_signal(results)`: Emitted when analysis completes successfully
-- `error_signal(error_message)`: Emitted when an error occurs
-
-**Key Methods**:
-- `run()`: Main thread execution method
-- `pause()`: Pause the analysis
-- `resume()`: Resume a paused analysis
-- `stop()`: Stop the analysis
-- `_progress_callback()`: Internal callback for progress updates
-
-**Usage Example**:
-```python
-# Create and start analysis thread
-analysis_thread = AnalysisThread(
-    controller=analysis_controller,
-    save_files=True,
-    preview_middle=True
-)
-analysis_thread.start()
-
-# Connect signals
-analysis_thread.progress_signal.connect(update_progress_ui)
-analysis_thread.finished_signal.connect(handle_results)
-analysis_thread.error_signal.connect(show_error)
-```
-Behavior:
- - Pause: waits between frames until resumed (thread sleeps to reduce CPU).
- - Stop: requests early termination after current frame; progress callback returns False to abort processing.
+- Used by `AnalysisCore` and processors for result visualization
+- Generates per-frame overlay images saved during analysis
+- Works with OpenCV for image drawing operations
 
 ---
 
@@ -1565,41 +977,14 @@ Behavior:
 
 This section documents the utility modules in the `src/utilities` directory that provide common functionality used throughout the application.
 
-### `image.py`
-**File Path**: `/src/utilities/image.py`
+### `core_utils.py`
+**File Path**: `/src/utilities/core_utils.py`
 
 **Purpose**:
-Comprehensive image processing utilities for the Droplet Wall Interaction Tool, including background creation, rotation, cropping, and video conversion.
+Centralized logging management and core utilities for the Droplet Wall Interaction Tool, providing a unified interface for application logging.
 
 **Key Functions**:
-- `create_background_image()`: Creates a robust background image using multiple methods
-- `rotate_image()`: Rotates images with proper handling of edges and corners
-- `crop_image()`: Crops images using specified parameters
-- `convert_videos_to_images()`: Converts video files to image sequences
-
-**Features**:
-- Support for various image formats and color spaces
-- Advanced background calculation using median filtering
-- Automatic handling of image orientation
-- Batch processing of video files
-
-**Dependencies**:
-- OpenCV (cv2)
-- NumPy
-- Python standard libraries
-- Custom utilities: `logging_manager.get_logger`
-
-**Integration**:
-- Used throughout the application for image manipulation
-- Supports both single images and batch processing
-
----
-
-### `logging_manager.py`
-**File Path**: `/src/utilities/logging_manager.py`
-
-**Purpose**:
-Centralized logging management system for the Droplet Wall Interaction Tool, providing a unified interface for application logging.
+- `get_logger(name)`: Get or create a logger instance with consistent configuration
 
 **Key Components**:
 - `LoggingManager` class: Singleton that manages log levels and handlers
@@ -1620,7 +1005,7 @@ Centralized logging management system for the Droplet Wall Interaction Tool, pro
 
 **Usage Example**:
 ```python
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
 
 logger = get_logger(__name__)
 logger.info("Application started")
@@ -1636,97 +1021,264 @@ logger.error("Error occurred")
 
 ---
 
+### `image_utils.py`
+**File Path**: `/src/utilities/image_utils.py`
+
+**Purpose**:
+Comprehensive image processing utilities for the Droplet Wall Interaction Tool, including background creation, rotation, cropping, ROI selection, and video conversion.
+
+**Key Functions**:
+- `create_background_image()`: Creates a robust background image using multiple methods
+- `rotate_image()`: Rotates images with proper handling of edges and corners
+- `crop_image()`: Crops images using specified parameters
+- `convert_videos_to_images()`: Converts video files to image sequences
+- `safe_imread()`: Safely loads images with error handling
+
+**Key Classes**:
+- `ROISelector`: Interactive dialog for ROI selection with rotation support
+
+**Features**:
+- Support for various image formats and color spaces
+- Advanced background calculation using median filtering
+- Automatic handling of image orientation
+- Batch processing of video files
+- Interactive ROI selection with visual feedback
+
+**Dependencies**:
+- OpenCV (cv2)
+- NumPy
+- PySide6 for GUI components (ROISelector)
+- Custom utilities: `core_utils.get_logger`
+
+**Integration**:
+- Used throughout the application for image manipulation
+- Supports both single images and batch processing
+- ROISelector integrates with AnalysisGUI for region selection
+
+---
+
+### `measurement_utils.py`
+**File Path**: `/src/utilities/measurement_utils.py`
+
+**Purpose**:
+Consolidated measurement utilities module for Droplet Wall Interaction Tool. Provides:
+- Baseline detection utilities
+- Structured packing edge detection  
+- Velocity calculations from center points
+- Re-exports of contact angle calculation methods from `src/analysis/contact_angle/` for backward compatibility
+
+This module centralizes common measurement helpers and provides a stable, single-location API for imports that were previously referenced from separate baseline, packing, velocity, or contact-angle helper modules.
+
+**Key Functions**:
+
+**Functions defined in this module:**
+- `find_single_baseline()`: Baseline detection for droplet analysis
+- `find_vertical_lines()`: Vertical line detection for structured packing mode
+- `calculate_velocities()`: Velocity calculations from center points
+
+**Re-exported from `src/analysis/contact_angle/`:**
+- `calculate_contact_angles()` (from `arc_method.py`)
+- `calculate_tangent_contact_angles()` (from `tangent_method.py`)
+- `calculate_ellipse_contact_angle()` (from `ellipse_method.py`)
+- `calculate_contact_angle_left()` (from `ellipse_method.py`)
+- `calculate_contact_angle_right()` (from `ellipse_method.py`)
+- `fit_left_polynomial()` (from `polynomial_method.py`)
+- `fit_right_polynomial()` (from `polynomial_method.py`)
+- `rotate_coordinates_90()` (from `polynomial_method.py`)
+
+#### `find_single_baseline(image, baseline_offset=0, baseline_tf=False, manual_offset=0)`
+Detects the baseline where a droplet sits using multiple detection strategies.
+
+**Parameters**:
+- `image`: Input image (numpy array)
+- `baseline_offset`: Manual offset adjustment for baseline (pixels)
+- `baseline_tf`: If True, use manual offset only
+- `manual_offset`: Manual offset value when baseline_tf is True
+
+**Returns**:
+- `tuple[int|None, int|None]`: `(y1_left, y1_right)` baseline y-coordinates, or `(None, None)` if not found
+
+**Features**:
+- Automatic threshold determination
+- Multiple detection strategies (Canny edge detection, Hough transform)
+- Noise reduction with Gaussian blur
+- Adaptive thresholding based on image statistics
+- Scoring system for line selection
+
+**Usage Example**:
+```python
+import cv2
+from src.utilities.measurement_utils import find_single_baseline
+
+# Load image
+image = cv2.imread('droplet.jpg')
+
+# Find baseline
+y_left, y_right = find_single_baseline(
+    image,
+    baseline_offset=5,
+    baseline_tf=False
+)
+
+# Draw baseline on image
+height = image.shape[0]
+cv2.line(image, (0, y_left), (image.shape[1], y_right), (0, 255, 0), 2)
+```
+
+**Notes**:
+- Automatic mode uses Canny + HoughLinesP; favors lower-half, near-horizontal lines; tolerant to slight tilt
+- Manual mode returns a flat baseline at `img_h - manual_offset`
+- Baseline may be slightly sloped; downstream uses average y for some steps
+
+**Integration**:
+- Used by analysis pipeline for contact angle measurements
+- Called from `src/analysis/processors.py` and `src/core.py`
+
 ### `overlays.py`
 **File Path**: `/src/utilities/overlays.py`
 
 **Purpose**:
-Provides overlay widgets that enhance the user interface with additional functionality like logging and navigation.
+Provides overlay widgets that enhance the user interface with additional functionality like logging and navigation. These overlays are positioned strategically on the UI for optimal user experience.
 
 **Key Components**:
-- `SmoothOverlay`: Base class for animated overlays
-- `LogOverlay`: Displays application logs with filtering
-- `NavigationOverlay`: Provides navigation controls
+- `SmoothOverlay`: Base class for animated overlays with smooth show/hide transitions
+- `LogOverlay`: Displays application logs with filtering (positioned at top-left corner)
+- `NavigationOverlay`: Provides navigation controls (positioned at top-right corner)
 
 **Features**:
-- Smooth animations and transitions
-- Customizable appearance
-- Responsive layout
-- Keyboard shortcuts
+- Smooth fade-in/fade-out animations using QPropertyAnimation
+- Customizable appearance with semi-transparent backgrounds
+- Responsive layout that follows parent widget
+- Keyboard shortcuts for quick access
+- Color-coded log levels (DEBUG: cyan, INFO: green, WARNING: orange, ERROR: red)
+- Real-time log filtering by severity level
+- Status indicator with colored dot showing highest severity
+
+**Recent Updates** (from UI refactoring):
+- Repositioned LogOverlay to top-left corner (previously bottom-left)
+- Repositioned NavigationOverlay to top-right corner
+- Updated log toggle button text and geometry
+- Improved visual consistency with standardized UI indicators
 
 **Dependencies**:
-- PySide6 for GUI components
-- Custom utilities: `logging_manager.get_logger`
+- PySide6 for GUI components (QFrame, QPropertyAnimation, QGraphicsOpacityEffect)
+- Custom utilities: `core_utils.get_logger`
 
 **Integration**:
-- Used by the main application window
-- Integrates with the logging system
-- Provides user interface enhancements
+- Used by the main application window for system-wide logging
+- Integrates with the logging system through centralized logger
+- Provides user interface enhancements for debugging and navigation
 
 ---
 
-### `roi.py`
-**File Path**: `/src/utilities/roi.py`
+### `preview_optimisation.py`
+**File Path**: `/src/utilities/preview_optimisation.py`
 
 **Purpose**:
-Provides a graphical interface for selecting and manipulating regions of interest (ROI) in images. This module is essential for defining analysis areas in the Droplet Wall Interaction Tool.
+Provides optimized preview generation with caching to improve UI responsiveness during analysis.
 
-**Key Components**:
+**Key Classes**:
+- `PreviewCache`: Caches preview images to avoid redundant processing
+- `OptimizedPreviewGenerator`: Generates optimized previews with intelligent caching
 
-#### `ROISelector` Class
-A dialog for interactive ROI selection on images with rotation support.
+**Key Functions**:
+- `get_optimized_preview_generator()`: Returns singleton instance of the preview generator
 
-**Key Features**:
-- Interactive ROI selection with click-and-drag interface
-- Support for image rotation before selection
-- Real-time visual feedback during selection
-- Coordinate conversion between display and image space
-- Responsive layout that adapts to screen size
+**Features**:
+- Automatic cache invalidation when parameters change
+- Memory-efficient caching strategy
+- Integration with Qt signals for UI updates
+- Reduces redundant image processing
 
-**Properties**:
-- `image_path`: Path to the image for ROI selection
-- `rotation_angle`: Current rotation angle of the image
-- `current_selection`: Currently selected ROI as a QRect
+**Integration**:
+- Used by `AnalysisGUI` for context-sensitive preview updates
+- Coordinates with analysis controller for parameter tracking
+- Improves UI responsiveness during parameter adjustments
+
+---
+
+### `processors.py`
+**File Path**: `/src/utilities/processors.py`
+
+**Purpose**:
+Provides utility processors for batch operations, results handling, and statistics updates in the GUI.
+
+**Key Classes**:
+- `ResultsProcessor`: Processes and formats analysis results for display
+- `StatsUpdater`: Updates statistics overlays in real-time during analysis
+- `BatchProcessor`: Manages batch processing operations for multiple folders
+
+**Features**:
+- Efficient result aggregation and formatting
+- Real-time statistics calculation and display
+- Batch operation coordination
+- Progress tracking and reporting
+
+**Integration**:
+- Used by `AnalysisGUI` for result display and batch operations
+- Works with `AnalysisThread` for progress updates
+- Coordinates with batch control panel for folder processing
+
+---
+
+### `threading.py`
+**File Path**: `/src/utilities/threading.py`
+
+**Purpose**:
+Provides QThread implementations for running image analysis operations in background threads, allowing for responsive UI during processing.
+
+**Key Classes**:
+
+#### `AnalysisThread(QThread)`
+Thread class for running analysis operations asynchronously without blocking the UI.
 
 **Signals**:
-- `roi_selected`: Emitted when ROI selection is confirmed (left, top, right, bottom)
+- `progress_signal(progress, advancing_contact_angles, receding_contact_angles, center_points_px, result_images)`: Emitted during analysis to report progress (signature: float, list, list, list, dict)
+- `finished_signal(results)`: Emitted when analysis completes successfully
+- `error_signal(error_message)`: Emitted when an error occurs during analysis
 
-**Main Methods**:
-- `set_roi(left, top, right, bottom)`: Programmatically set the ROI in image coordinates
-- `load_and_rotate_image()`: Load and rotate the input image
-- `auto_size_dialog()`: Adjust dialog size based on image and screen dimensions
-- `update_display()`: Refresh the image display with current ROI
-- `position_dialog_centered()`: Center the dialog on screen
-
-**Dependencies**:
-- OpenCV (cv2) for image processing
-- PySide6 for GUI components
-- NumPy for numerical operations
-- Custom utilities: `image.rotate_image`, `logging_manager.get_logger`
+**Key Methods**:
+- `run()`: Main thread execution method that orchestrates the analysis
+- `resume()`: Resume a paused analysis operation
+- `stop()`: Stop the analysis operation gracefully
+- `_progress_callback()`: Internal callback for progress updates from controller
 
 **Usage Example**:
 ```python
-# Create and show ROI selector
-dialog = ROISelector(parent=main_window, image_path="image.png", rotation_angle=45)
-dialog.roi_selected.connect(self.handle_roi_selected)
-dialog.exec_()
+# Create and start analysis thread
+analysis_thread = AnalysisThread(
+    controller=analysis_controller,
+    save_files=True,
+    preview_middle=True,
+    use_first_as_background=False
+)
+analysis_thread.start()
 
-def handle_roi_selected(self, left, top, right, bottom):
-    print(f"Selected ROI: ({left}, {top}, {right}, {bottom})")
+# Connect signals
+analysis_thread.progress_signal.connect(update_progress_ui)
+analysis_thread.finished_signal.connect(handle_results)
+analysis_thread.error_signal.connect(show_error)
 ```
 
+**Behavior**:
+- Pause: Thread waits between frames until resumed (uses sleep to reduce CPU usage)
+- Stop: Requests early termination after current frame; progress callback returns False to abort processing
+- Error handling: Captures exceptions and emits error_signal with descriptive message
+- Resource cleanup: Ensures proper cleanup on thread completion
+
 **Integration**:
-- Used by analysis modules to define analysis regions
-- Integrates with the main application's GUI components
-- Works with the image processing pipeline for coordinate transformations
+- Used by `AnalysisGUI` for all preview and full analysis operations
+- Coordinates with `AnalysisCore` controller for processing
+- Integrates with batch processing for multi-folder operations
 
 ---
 
 ## Widgets Modules
 
-This section documents the widget modules that provide the graphical user interface components for the Droplet Wall Interaction Tool. These widgets are built using PySide6 and follow the Model-View-Controller (MVC) pattern.
+This section documents the widget modules that provide the graphical user interface components for the Droplet Wall Interaction Tool. These widgets are built using PySide6 and organized into reusable components in the `src/widgets/` directory.
 
-### `widgets.py`
-**File Path**: `/src/widgets.py`
+### `gui.py`
+**File Path**: `/src/gui.py`
 
 **Purpose**:
 Provides the main analysis interface for processing and visualizing droplet interaction experiments.
@@ -1735,39 +1287,187 @@ Provides the main analysis interface for processing and visualizing droplet inte
 - `AnalysisGUI`: Main analysis interface with image processing controls and visualization
 - Interactive ROI (Region of Interest) selection
 - Batch processing support for multiple experiments
-- Real-time preview of analysis results
+- Real-time preview of analysis results with debounced updates
+- Integration with specialized widget components from `src/widgets/`
 
 **Features**:
-- Multiple analysis modes (free sedimentation, contact angle, etc.)
-- Interactive parameter adjustment with live preview
-- Frame-by-frame navigation
-- Batch processing queue
-- Result visualization with overlays
+- Multiple analysis modes (free sedimentation, contact angle, channel, structured packing)
+- Interactive parameter adjustment with context-sensitive live preview
+- Frame-by-frame navigation with embedded image slider
+- Batch processing queue with progress tracking
+- Result visualization with overlays and statistics
+- Optimized preview generation with caching and debouncing
 
 **Dependencies**:
 - PySide6 for GUI components
 - OpenCV for image processing
 - NumPy for numerical operations
-- Custom utilities: `image`, `roi`, `logging_manager`
+- Custom widgets: `BatchControlPanel`, `PreviewCanvas`, `ImageSlider`, `StatsOverlay`, `ParameterPanel`, `FolderManager`
+- Custom utilities: `ROISelector`, `image_utils`, `core_utils`
 
 **Integration**:
-- Connects to analysis controller for processing
-- Displays results from analysis threads
+- Connects to analysis controller (`src/core.py`) for processing
+- Displays results from analysis threads (`src/utilities/threading.py`)
 - Integrates with the main application window
+- Coordinates with specialized widget components
 
 **Signals**:
-- Subscribes to `controller.image_processed(int, dict)` to update previews.
+- Subscribes to `controller.image_processed(int, dict)` to update previews
 - Spawns `AnalysisThread` for preview/full runs and connects:
     - `progress_signal(float, list, list, list, dict)` → updates stats/preview
     - `finished_signal(tuple)` → saving and UI reset
     - `error_signal(str)` → error handling and UI reset
-- `ROISelector` emits `roi_selected(left, top, right, bottom)` → `apply_selected_roi`.
-- `BatchProcessingWorker` (helpers.batch) emits per-folder progress for the list view.
+- `ROISelector` emits `roi_selected(left, top, right, bottom)` → `apply_selected_roi`
+- `BatchProcessingWorker` emits per-folder progress for the list view
 
 **Batch processing**:
-- Controls: `Add Folders`, `Process All Folders`, `Pause/Resume`, `Stop`.
-- List view with `FolderItemDelegate` renders per-folder progress bars and statuses.
-- Uses a background worker (helpers.batch) to process folders sequentially.
-- Updates `overall_progress` (0–100%) and `folder_counter` (e.g., "2/5 folders").
+- Controls: `Add Folders`, `Process All Folders`, `Pause/Resume`, `Stop`
+- List view with `FolderItemDelegate` renders per-folder progress bars and statuses
+- Uses a background worker (helpers.batch) to process folders sequentially
+- Updates `overall_progress` (0–100%) and `folder_counter` (e.g., "2/5 folders")
+
+### `batch_control_panel.py`
+**File Path**: `/src/widgets/batch_control_panel.py`
+
+**Purpose**:
+Provides batch processing controls and folder list management for processing multiple experiment folders.
+
+**Key Components**:
+- Folder list widget with drag-and-drop support
+- Batch processing control buttons (Add, Process, Pause/Resume, Stop)
+- Progress tracking for individual folders
+- Processing mode selection (undone only, redo all, redo failed)
+- Results scanning for folder status indicators
+
+**Features**:
+- Custom folder item delegate with progress bars
+- Context menu for folder operations
+- Real-time progress updates
+- Visual indicators for folder processing status
+- Drag-and-drop folder addition
+
+**Recent Updates** (from UI refactoring):
+- Controls placed at top of panel for better accessibility
+- Reordered folder list and progress display
+- Removed deprecated `get_controls_layout()` method
+- Improved layout consistency
+
+**Dependencies**:
+- PySide6 for GUI components
+- Custom helpers: `FolderItemDelegate`, `FolderDropZone`
+- Custom utilities: `core_utils.get_logger`
+
+### `display_panel.py`
+**File Path**: `/src/widgets/display_panel.py`
+
+**Purpose**:
+Provides specialized display components for image preview, frame navigation, and statistics overlay.
+
+**Key Components**:
+
+#### `ImageSlider` Class
+Professional image slider widget for navigating through result images with playback controls.
+
+**Features**:
+- Frame navigation (previous/next buttons)
+- Auto-play with adjustable speed (0.1×–4.0×)
+- Direct frame selection via slider
+- Keyboard shortcuts (arrow keys, space for play/pause)
+- Focus handling with transparent/opaque styles
+- Localized speed label formatting
+- Custom speed steps for precise playback control
+
+**Recent Updates** (from UI refactoring):
+- Embedded into PreviewCanvas as an overlay (no longer external)
+- Added focus handling for better keyboard interaction
+- Implemented transparent style when unfocused, opaque when focused
+- Custom speed steps for finer control (0.1, 0.2, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0×)
+- Improved speed label with localized formatting
+
+**Signals**:
+- `frame_changed(int)`: Emitted when the current frame changes
+
+#### `PreviewCanvas` Class
+Canvas widget for displaying analysis results with integrated image slider and stats toggle.
+
+**Features**:
+- Image display canvas with proper scaling and centering
+- Statistics overlay toggle button (top-left)
+- Automatic resize handling
+- OpenCV to Qt image conversion
+- Embedded image slider as an overlay
+
+**Recent Updates** (from UI refactoring):
+- Accepts and positions ImageSlider as an overlay component
+- Lightened stats icon color for better visibility
+- Improved layout management for embedded slider
+
+**Methods**:
+- `set_image(image, fit_to_window=True)`: Display an image on the canvas
+- `clear_canvas()`: Clear the canvas display
+- `resizeEvent(event)`: Handle resize to reposition stats icon and slider
+
+#### `StatsOverlay` Class
+Semi-transparent overlay that displays real-time analysis statistics.
+
+**Features**:
+- Displays contact angles (advancing/receding)
+- Shows contour dimensions (width/height)
+- Displays area and diameter measurements
+- Shows velocity calculations
+- Adapts content based on analysis mode
+- Color-coded sections for easy reading
+
+**Methods**:
+- `update_from_numeric_data(...)`: Update overlay with numeric statistics
+- `update_display()`: Refresh the visual display
+- `show_overlay()` / `hide_overlay()`: Control visibility with animation
+
+**Dependencies**:
+- PySide6 for GUI components
+- OpenCV (cv2) for image handling
+- NumPy for numerical operations
+- Custom utilities: `core_utils.get_logger`
+
+**Integration**:
+- Used by `AnalysisGUI` for result display and navigation
+- Coordinates with analysis controller for frame data
+- Provides user interface for reviewing analysis results
+
+### `folder_manager.py`
+**File Path**: `/src/widgets/folder_manager.py`
+
+**Purpose**:
+Provides folder selection and management widgets with drag-and-drop support.
+
+**Key Components**:
+- `FolderDropZone`: Widget for dragging and dropping folders
+- Folder list management utilities
+- Path validation and normalization
+
+**Features**:
+- Drag-and-drop folder addition
+- Visual feedback during drag operations
+- Path validation and error handling
+- Multi-folder selection support
+
+### `parameter_panel.py`
+**File Path**: `/src/widgets/parameter_panel.py`
+
+**Purpose**:
+Provides parameter input controls for analysis configuration.
+
+**Key Components**:
+- `ParameterPanel`: Main panel for analysis parameters
+- `FlexibleDoubleSpinBox`: Custom spinbox with flexible formatting
+- Parameter grouping and organization
+
+**Features**:
+- ROI parameters (x, y, width, height)
+- Calibration parameters (pixel/mm, FPS, threshold)
+- Rotation and baseline controls
+- Mode-specific parameter visibility
+- Instant parameter validation
+- Integration with controller property system
 
 ---

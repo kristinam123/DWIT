@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
 
 # Setup logger for this module
 logger = get_logger(__name__)
@@ -281,7 +281,7 @@ class LogOverlay(SmoothOverlay):
 
         # Close button (moved to left of checkboxes)
         self.toggle_btn = QToolButton()
-        self.toggle_btn.setText("▼ Log")
+        self.toggle_btn.setText("▲ Log")
         self.toggle_btn.setToolTip("Hide log")
         self.toggle_btn.clicked.connect(self.hide_overlay)
         self.toggle_btn.setStyleSheet(
@@ -538,7 +538,7 @@ class LogOverlay(SmoothOverlay):
         self._buffered_messages.clear()
 
     def _update_geometry(self):
-        """Update overlay geometry to stick to bottom of parent."""
+        """Update overlay geometry to stick to top-left of parent."""
         if not self.parent_widget:
             return
         logger.debug("Updating LogOverlay geometry.")
@@ -546,8 +546,8 @@ class LogOverlay(SmoothOverlay):
         parent_rect = self.parent_widget.rect()
         height = 350  # Reduced height since header is removed
 
-        # Position at bottom of parent with consistent margin
-        self.setGeometry(0, parent_rect.height() - height, parent_rect.width(), height)
+        # Position at top-left of parent
+        self.setGeometry(0, 0, parent_rect.width(), height)
 
 
 class NavigationOverlay(SmoothOverlay):
@@ -624,7 +624,7 @@ class NavigationOverlay(SmoothOverlay):
         layout.addStretch(1)
 
     def _update_geometry(self):
-        """Update overlay geometry to stick to bottom-right of parent."""
+        """Update overlay geometry to stick to top-right of parent."""
         if not self.parent_widget:
             return
 
@@ -632,10 +632,8 @@ class NavigationOverlay(SmoothOverlay):
         width = 220  # Compact width for the 4 analysis modes
         height = 180  # Reduced height - no header, just 4 buttons
 
-        # Position at bottom-right of parent
-        self.setGeometry(
-            parent_rect.width() - width, parent_rect.height() - height, width, height
-        )
+        # Position at top-right of parent
+        self.setGeometry(parent_rect.width() - width, 0, width, height)
 
     def _navigate_to_analysis(self, analysis_mode):
         """Navigate to specific analysis mode."""

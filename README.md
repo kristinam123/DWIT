@@ -50,11 +50,19 @@
 <a name="project-structure"></a>
 ## Project Structure
 
-| Directory         | Purpose                                              |
-|-------------------|------------------------------------------------------|
-| `src/helpers/`    | Image processing, analysis, and data saving helpers  |
-| `src/utilities/`  | Utilities: image, logging_manager, overlays, ROI     |
-| `tests/`          | Test images organized by experiment type             |
+This project follows modern Python best practices with a `src` layout:
+
+| Directory            | Purpose                                              |
+|----------------------|------------------------------------------------------|
+| `src/`               | Source code package (importable as `src`)            |
+| `src/analysis/`      | Core analysis pipeline, processors, and contact angle methods |
+| `src/helpers/`       | Image processing, geometry, initialization, and visualization helpers |
+| `src/utilities/`     | Cross-cutting utilities: image, logging, overlays, threading, measurements |
+| `src/widgets/`       | Reusable Qt widgets for UI components                |
+| `tests/`             | Test images organized by experiment type             |
+| `pyproject.toml`     | Package metadata and tool configuration              |
+
+The `src` layout ensures clean separation between source code and other project files, following [PEP 517](https://peps.python.org/pep-0517/) and [PEP 518](https://peps.python.org/pep-0518/) standards.
 
 ---
 
@@ -103,22 +111,35 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 
 ### Data Outputs
 
-The analysis results are saved to `results_raw.xlsx` with the following columns in order:
-- **Time**: Frame timestamp or sequence number
-- **Area [px]**: Droplet area in pixels
-- **Area [mm]**: Droplet area in square millimeters (requires calibration)
-- **Diameter [px]**: Equivalent diameter in pixels, calculated as D=√(4A/π)
-- **Diameter [mm]**: Equivalent diameter in millimeters (requires calibration)
-- **Contour width/height [px/mm]**: Bounding rectangle dimensions
-- **Center coordinates [px/mm]**: Droplet center positions
-- **Velocity**: Motion analysis results (when applicable)
-- **Contact angles**: Angular measurements (in contact_angle mode)
+The analysis results are saved to `results_raw.xlsx` with the following columns:
 
-**Note on open contours**: For incomplete or open contour shapes (edge case), the tool uses a conservative area estimation based on the bounding rectangle to ensure robust processing.
+**Always included:**
+- **FileName**: Name of the image file being analyzed
+- **Time**: Frame timestamp (in seconds) or sequence number
+- **Area [px]** / **Area [mm]**: Droplet area (calculated from contour)
+- **Area diameter [px]** / **Area diameter [mm]**: Equivalent diameter, calculated as D=√(4A/π)
+- **Contour width [px]** / **Contour width [mm]**: Bounding rectangle width
+- **Contour height [px]** / **Contour height [mm]**: Bounding rectangle height
+- **Ellipse diameter [px]** / **Ellipse diameter [mm]**: Equivalent diameter from ellipse fit
+- **X of center [px]** / **X of center [mm]**: Droplet center X coordinate
+- **Y of center [px]** / **Y of center [mm]**: Droplet center Y coordinate
+- **Velocity**: Frame-to-frame velocity (when applicable)
+
+**Mode-specific columns:**
+- **Advancing CA** / **Receding CA**: Contact angles (in contact_angle and channel modes)
+- **Contact line [px]** / **Contact line [mm]**: Contact line width (in contact_angle and channel modes)
+- **Discontinuous Velocity [px/s]** / **Discontinuous Velocity [mm/s]**: Discontinuous velocity measurements (in structured_packing mode)
+
+**Parameters section:** Analysis parameters are saved inline at the bottom of the Excel file for reproducibility (includes: Folder, FPS, Pixel calibration, Threshold, etc.)
+
+**Notes:**
+- For incomplete or open contour shapes (edge case), the tool uses a conservative area estimation based on the bounding rectangle to ensure robust processing
+- All measurements in `[mm]` require pixel calibration (pixel/mm parameter)
+- The Excel file is saved as `results_raw.xlsx` in the same folder as the images
 
 ### Logging & Troubleshooting
 
-- All logs, warnings, and errors are displayed in the log overlay (bottom left).
+- All logs, warnings, and errors are displayed in the log overlay (top-left corner).
 - The log status indicator reflects error (red), warning (orange), or normal (green) states.
 - Click the indicator to access the full log overlay and review details.
 
@@ -196,9 +217,40 @@ We welcome academic and research contributions. To contribute:
 5. Submit a pull/merge request with a clear description of your changes.
 
 **Development notes:**
-- Helpers: `src/helpers/`
+- Source code is organized in the `src/` package following modern Python best practices
 - Use absolute imports (e.g., `from src.core import ...`)
-- Update documentation if you add features.
+- All modules follow the single responsibility principle for better maintainability
+- Each package has a descriptive `__init__.py` with proper docstrings
+- Import statements follow PEP 8 ordering: standard library, third-party, first-party
+- Update documentation if you add features
+
+**Code Organization:**
+- `src/analysis/`: Core analysis pipeline components
+  - `contact_angle/`: Contact angle calculation methods (arc, tangent, ellipse, polynomial)
+  - `processors.py`: Image and data processors
+  - `settings_manager.py`: Settings persistence
+  - `workflow.py`: Analysis orchestration
+- `src/helpers/`: Modular helper functions for specific tasks
+  - `batch.py`: Batch processing helpers
+  - `contact_detection.py`: Contact detection with vertical lines
+  - `geometry.py`: Geometric calculations
+  - `initialisation.py`: Experiment initialization
+  - `preview.py`: Preview utilities
+  - `save_results.py`: Results export to Excel
+  - `visualisation.py`: Visualization and drawing helpers
+- `src/utilities/`: Cross-cutting utilities
+  - `core_utils.py`: Logging and core utilities
+  - `image_utils.py`: Image processing and ROI
+  - `measurement_utils.py`: Measurement calculations (re-exports contact angle methods)
+  - `overlays.py`: UI overlays (logging, navigation)
+  - `preview_optimisation.py`: Preview caching
+  - `processors.py`: Batch and results processors
+  - `threading.py`: Background thread management
+- `src/widgets/`: Reusable Qt UI components
+  - `batch_control_panel.py`: Batch processing controls
+  - `display_panel.py`: Image display, slider, stats overlay
+  - `folder_manager.py`: Folder selection and management
+  - `parameter_panel.py`: Parameter input controls
 
 ---
 
@@ -220,17 +272,17 @@ Sample test datasets are provided under `tests/`. Add them via the Analysis tab 
    ```sh
    python dwit.py
    ```
-  - The application starts with the Free Sedimentation mode page open.
+   - The application starts with the Free Sedimentation mode page open.
 
 3. **Run an analysis**:
-   - Navigate to the **Analysis** tab
+   - Navigate to the **Analysis** tab (integrated in each mode page)
    - Use **Add Folder** to select your trial folder(s)
    - Adjust analysis parameters as needed
    - Click **Preview** to verify settings
    - Click **Full Analysis** to process all queued trials
-  - Per-frame overlays are saved to the selected folder. The raw-results Excel is saved as `<trial>/results_raw.xlsx`.
-2. For subsequent use, add the test folders from `tests/` in the Analysis tab
-3. The test data includes sample images for quick validation
+   - Per-frame overlays are saved to the selected folder. The raw-results Excel is saved as `<trial>/results_raw.xlsx`.
+
+**Note:** For testing, use the sample folders from `tests/` directory. The test data includes images organized by experiment type for quick validation.
 
 ---
 

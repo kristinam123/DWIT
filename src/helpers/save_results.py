@@ -5,12 +5,11 @@ For exporting experiment data in Droplet Wall Interaction Tool.
 
 import os
 import time
-from typing import Union
 
 import numpy as np
 import pandas as pd
 
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
 
 # Setup logger for this module
 logger = get_logger(__name__)
@@ -18,8 +17,8 @@ logger = get_logger(__name__)
 
 def save_results(
     output_dir: str,
-    times: list[Union[float, str]],
-    result_lists: dict[str, list[Union[float, str]]],
+    times: list[float | str],
+    result_lists: dict[str, list[float | str]],
     parameters: dict | None = None,
     folder_name: str | None = None,
     file_names: str | None = None,
@@ -91,6 +90,7 @@ def _extract_data_from_results(result_lists, num_times):
     """
 
     def ensure_list(val, n):
+        """Ensure a value is a list of length n, repeating if necessary."""
         if isinstance(val, list):
             return val
         return [val] * n
@@ -216,7 +216,7 @@ def _extract_center_coordinates(centers, centers_mm):
     centers_y = []
     for point in centers:
         if (
-            isinstance(point, (list, tuple))
+            isinstance(point, list | tuple)
             and len(point) >= 2
             and point[0] is not None
             and point[1] is not None
@@ -232,12 +232,12 @@ def _extract_center_coordinates(centers, centers_mm):
     centers_y_mm = []
     if (
         centers_mm
-        and isinstance(centers_mm[0], (list, tuple))
+        and isinstance(centers_mm[0], list | tuple)
         and len(centers_mm[0]) >= 2
     ):
         for point in centers_mm:
             if (
-                isinstance(point, (list, tuple))
+                isinstance(point, list | tuple)
                 and len(point) >= 2
                 and point[0] is not None
                 and point[1] is not None

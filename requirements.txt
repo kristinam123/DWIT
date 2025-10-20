@@ -8,3 +8,5 @@ scipy>=1.7.0  # CC BY 4.0 - https://creativecommons.org/licenses/by/4.0
 
 # Image Processing
 opencv-python>=4.5.0  # Apache 2.0 or BSD License
+
+# (Development tools intentionally kept out of runtime requirements)

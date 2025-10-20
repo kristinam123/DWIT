@@ -1,15 +1,113 @@
-"""Drawing utilities.
+"""Drawing and visualization utilities.
 
 For experiment visualization in Droplet Wall Interaction Tool (DWIT).
+This module contains visualization utilities extracted from core.py
+to improve code organization and maintainability.
 """
 
 import cv2
 import numpy as np
 
-from src.utilities.logging_manager import get_logger
+from src.utilities.core_utils import get_logger
 
 # Setup logger for this module
 logger = get_logger(__name__)
+
+
+def draw_intersection_points_and_angles(
+    result_image,
+    result_images,
+    angles,
+    advancing_contact_angles,
+    receding_contact_angles,
+):
+    """Draw intersection points and contact angle lines on result image.
+
+    Args:
+    ----
+        result_image: Image to draw on (modified in-place)
+        result_images: Dictionary containing intersection_points
+        angles: Dictionary with 'left' and 'right' angle values
+        advancing_contact_angles: List of advancing angles
+        receding_contact_angles: List of receding angles
+
+    """
+    if "intersection_points" not in result_images:
+        return
+
+    intersection_points = result_images["intersection_points"]
+    if not intersection_points or not all(
+        point is not None and not any(np.isnan(x) for x in point)
+        for point in intersection_points[:2]
+    ):
+        return
+
+    # Draw intersection points
+    for point in intersection_points[:2]:
+        cv2.circle(result_image, (int(point[0]), int(point[1])), 8, (0, 255, 255), -1)
+        cv2.circle(result_image, (int(point[0]), int(point[1])), 10, (0, 0, 0), 2)
+
+    # Draw contact angle lines
+    latest_adv = (
+        angles["left"]
+        if not np.isnan(angles["left"])
+        else (
+            advancing_contact_angles[-1] if advancing_contact_angles else float("NaN")
+        )
+    )
+    latest_rec = (
+        angles["right"]
+        if not np.isnan(angles["right"])
+        else (receding_contact_angles[-1] if receding_contact_angles else float("NaN"))
+    )
+
+    if (
+        not np.isnan(latest_adv)
+        and not np.isnan(latest_rec)
+        and len(intersection_points) >= 2
+    ):
+        # Draw left side (advancing) angle line
+        if not np.isnan(latest_adv):
+            x, y = intersection_points[0]
+            angle_rad = np.radians(latest_adv)
+            line_length = 80
+            end_x = int(x + line_length * np.cos(angle_rad))
+            end_y = int(y - line_length * np.sin(angle_rad))
+            cv2.line(result_image, (int(x), int(y)), (end_x, end_y), (0, 255, 0), 2)
+
+        # Draw right side (receding) angle line
+        if not np.isnan(latest_rec):
+            x, y = intersection_points[1]
+            angle_rad = np.radians(180 - latest_rec)
+            line_length = 80
+            end_x = int(x + line_length * np.cos(angle_rad))
+            end_y = int(y - line_length * np.sin(angle_rad))
+            cv2.line(result_image, (int(x), int(y)), (end_x, end_y), (0, 255, 0), 2)
+
+
+def create_fallback_result(result_images, largest_contour):
+    """Create a basic fallback result image if none was created.
+
+    Args:
+    ----
+        result_images: Dictionary to store result images
+        largest_contour: The droplet contour to visualize
+
+    """
+    fallback_result = result_images.get("original").copy()
+    if largest_contour is not None:
+        # Draw filled contour area (30% transparent green)
+        draw_filled_contour(
+            fallback_result, largest_contour, color=(0, 255, 0), alpha=0.3
+        )
+        cv2.drawContours(fallback_result, [largest_contour], -1, (0, 255, 0), 2)
+        moment = cv2.moments(largest_contour)
+        if moment["m00"] != 0:
+            cx = int(moment["m10"] / moment["m00"])
+            cy = int(moment["m01"] / moment["m00"])
+            cv2.circle(fallback_result, (cx, cy), 8, (0, 0, 255), -1)
+    result_images["result"] = fallback_result
+    result_images["fallback"] = fallback_result.copy()
 
 
 def draw_filled_contour(img, contour, color=(0, 255, 0), alpha=0.3):
@@ -162,23 +260,3 @@ def draw_center_point(img, cx, cy, color=(0, 0, 255), crosshair_size=20, thickne
         )
     except Exception as e:
         logger.error(f"Error drawing center point: {e}")
-
-
-def highlight_interaction_zone(img, contour, y, zone=10, color=[0, 255, 255]):
-    """Highlight the interaction zone around a given y-coordinate on the image."""
-    logger.debug(
-        f"Highlighting interaction zone at y={y} with zone={zone}, color={color}"
-    )
-    try:
-        img_width = img.shape[1]
-        mask = np.zeros(img.shape[:2], dtype=np.uint8)
-        cv2.rectangle(mask, (0, int(y) - zone), (img_width, int(y) + zone), 255, -1)
-        contour_mask = np.zeros(img.shape[:2], dtype=np.uint8)
-        cv2.drawContours(contour_mask, [contour], -1, 255, -1)
-        intersection = cv2.bitwise_and(mask, contour_mask)
-
-        highlighted_pixels = np.sum(intersection > 0)
-        if highlighted_pixels > 0:
-            img[intersection > 0] = color
-    except Exception as e:
-        logger.error(f"Error highlighting interaction zone: {e}")

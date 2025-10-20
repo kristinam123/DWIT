@@ -7,7 +7,7 @@ import gc
 import os
 import sys
 import traceback
-from typing import Any, Optional
+from typing import Any
 
 from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtGui import QIcon
@@ -22,8 +22,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.utilities.logging_manager import get_logger, logging_manager
+from src.utilities.core_utils import get_logger, logging_manager
 from src.utilities.overlays import LogOverlay, NavigationOverlay
+from src.utilities.threading import ThreadManager
 
 
 # Defer heavy imports until needed
@@ -36,7 +37,7 @@ def _lazy_import_analysis_core():
 
 def _lazy_import_analysis_gui():
     """Lazy import of AnalysisGUI to speed up startup."""
-    from src.widgets import AnalysisGUI
+    from src.gui import AnalysisGUI
 
     return AnalysisGUI
 
@@ -54,8 +55,8 @@ class AnalysisWindow(QWidget):
 
     def __init__(
         self,
-        parent: Optional[QWidget] = None,
-        folder_path: Optional[str] = None,
+        parent: QWidget | None = None,
+        folder_path: str | None = None,
         analysis_mode: str = "contact_angle",
     ):
         """Initialize Analysis widget.
@@ -104,7 +105,7 @@ class AnalysisWindow(QWidget):
             logger.error(f"Folder path: {folder_path}")
             raise
 
-    def _extract_path(self, path_obj: Any) -> Optional[str]:
+    def _extract_path(self, path_obj: Any) -> str | None:
         """Extract path from various path object types.
 
         Handles path objects that might be wrapper objects with get/value methods,
@@ -188,30 +189,22 @@ class CellGUI(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
+        # === TOP CONTROLS ===
+        bottom_controls = self._create_bottom_controls()
+        main_layout.addWidget(bottom_controls)
+
         # === MAIN CONTENT AREA ===
         content_area = QWidget()
         content_layout = QVBoxLayout(content_area)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(3)
 
-        # Top controls area
-        top_controls = QWidget()
-        top_controls_layout = QVBoxLayout(top_controls)
-        top_controls_layout.setContentsMargins(0, 0, 0, 0)
-        top_controls_layout.setSpacing(3)
-
-        content_layout.addWidget(top_controls)
-
         # Content pages (stacked widget) - takes most space
         content_pages = self._create_content_pages()
         content_layout.addWidget(content_pages, 1)
 
-        # Bottom controls with status indicator
-        bottom_controls = self._create_bottom_controls()
-
         # Add to main layout
         main_layout.addWidget(content_area, 1)
-        main_layout.addWidget(bottom_controls)
 
         # Place the main container in a layout
         layout = QVBoxLayout(self)
@@ -350,22 +343,22 @@ class CellGUI(QWidget):
         # Determine what to show based on counts and highest level
         if error_count > 0:
             # Show error count with red background
-            display_text = str(error_count)
-            background_color = "#FF0000"  # Same red as overlay
-            text_color = "white"
+            display_text = "⬤"
+            background_color = "transparent"  # Same red as overlay
+            text_color = "#FF0000"
             tooltip = (
                 f"Log Status - {error_count} error(s), "
                 f"{warning_count} warning(s). Click to view logs"
             )
         elif warning_count > 0:
             # Show warning count with orange background
-            display_text = str(warning_count)
-            background_color = "#FFA500"  # Same orange as overlay
-            text_color = "white"
+            display_text = "⬤"
+            background_color = "transparent"
+            text_color = "#FFA500"
             tooltip = f"Log Status - {warning_count} warning(s). Click to view logs"
         else:
             # Default green status
-            display_text = "●"
+            display_text = "⬤"
             background_color = "transparent"
             text_color = "#00FF00"  # Green
             tooltip = "Log Status - No issues. Click to view logs"
@@ -426,7 +419,6 @@ class CellGUI(QWidget):
         logger.info(f"Changing to page: {self.page_names[index]}")
         # Lazy init: only create the page widget if not already done
         if self._page_widgets[index] is None:
-
             # Create the new widget
             self._page_widgets[index] = self._page_inits[index]()
             # Remove the placeholder widget at this index
@@ -452,7 +444,7 @@ class CellGUI(QWidget):
         """Update the navigation button text to show the current page."""
         if hasattr(self, "nav_button") and 0 <= index < len(self.page_names):
             page_name = self.page_names[index]
-            self.nav_button.setText(f"{page_name} ▲")
+            self.nav_button.setText(f"{page_name} ▼")
             self.nav_button.setToolTip(
                 f"Currently displaying: {page_name}. Click to select a different page."
             )
@@ -466,7 +458,7 @@ class CellGUI(QWidget):
 
         # Log button (left side)
         self.terminal_bottom_btn = QToolButton()
-        self.terminal_bottom_btn.setText("▲ Log")
+        self.terminal_bottom_btn.setText("▼ Log")
         self.terminal_bottom_btn.setToolTip("Show notification log")
         self.terminal_bottom_btn.clicked.connect(self._show_terminal_overlay)
 
@@ -474,7 +466,7 @@ class CellGUI(QWidget):
 
         # Log status indicator (next to log button)
         self.log_status_btn = QToolButton()
-        self.log_status_btn.setText("●")  # Circle indicator
+        self.log_status_btn.setText("⬤")  # Circle indicator
         self.log_status_btn.setToolTip("Log Status - Click to view logs")
         self.log_status_btn.clicked.connect(self._show_terminal_overlay)
         self.log_status_btn.setFixedSize(24, 24)
@@ -484,7 +476,7 @@ class CellGUI(QWidget):
         bottom_layout.addStretch(1)
 
         # Navigation selection button (right side) - shows current page name
-        self.nav_button = QPushButton("Free Sedimentation ▲")  # Default to first page
+        self.nav_button = QPushButton("Free Sedimentation ▼")  # Default to first page
         self.nav_button.setToolTip(
             "Currently displaying: Free Sedimentation."
             " Click to select a different page."
@@ -617,9 +609,7 @@ def cleanup_all_threads():
 
         # Clean up any thread manager instances
         try:
-            from src.utilities.thread_manager import thread_manager
-
-            thread_manager.stop_all(wait_ms=1000)
+            ThreadManager.stop_all(wait_ms=1000)
         except ImportError:
             pass  # thread_manager may not exist yet
 

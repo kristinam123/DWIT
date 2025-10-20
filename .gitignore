@@ -3,25 +3,94 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Sphinx documentation
+docs/_build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 # Ignore generated result files from test data (new naming: results_raw.xlsx)
 tests/free_sedimentation (BuAc_d_large)/results_raw.xlsx
 tests/channel (BuAc_d_large)/results_raw.xlsx
 tests/contact_wall (BuAc_d_large)/results_raw.xlsx
 tests/structured_packing (BuAc_d_large)/results_raw.xlsx
 
-# Development
+# Development tools
 .ruff_cache/
-.pytest_cache/
-
-# Virtual environments
-.venv/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
 # IDE specific files
 .vscode/
-.github/
+.idea/
+*.swp
+*.github
+*.swo
+*~
+.DS_Store
 
-# Ignore all .pyc files
-*.pyc
-
-# Ignore all __pycache__ directories
-__pycache__/
+# Project specific
+*.log
