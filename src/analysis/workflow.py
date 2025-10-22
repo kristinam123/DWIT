@@ -470,7 +470,7 @@ class FileHandler:
             logger.debug(
                 f"Skipping image preload: {len(files)} files exceeds threshold"
             )
-            return None
+            return {}
 
         preloaded_images = {}
         for q, file_path in enumerate(files):
