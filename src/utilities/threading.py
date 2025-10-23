@@ -39,7 +39,15 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 
-from PySide6.QtCore import QMutex, QObject, QThread, QWaitCondition, Signal
+from PySide6.QtCore import (
+    QMetaObject,
+    QMutex,
+    QObject,
+    Qt,
+    QThread,
+    QWaitCondition,
+    Signal,
+)
 
 from src.utilities.core_utils import get_logger
 from src.utilities.image_utils import create_background_image
@@ -266,7 +274,22 @@ class ThreadManager(QObject):
 
         # Stop timeout timer if exists
         if timeout_timer:
-            timeout_timer.stop()
+            try:
+                # Ensure stopping the QTimer happens in the timer's own thread
+                # to avoid "QObject::killTimer:
+                #   Timers cannot be stopped from another thread".
+                QMetaObject.invokeMethod(
+                    timeout_timer,
+                    "stop",
+                    Qt.QueuedConnection,
+                )
+            except Exception:
+                # Fallback to direct call
+                # if invokeMethod is not available for some reason
+                try:
+                    timeout_timer.stop()
+                except Exception:
+                    pass
 
         # Phase 1: Graceful stop
         logger.info(

@@ -609,7 +609,8 @@ def cleanup_all_threads():
 
         # Clean up any thread manager instances
         try:
-            ThreadManager.stop_all(wait_ms=1000)
+            manager = ThreadManager()
+            manager.stop_all(graceful_wait_ms=1000)
         except ImportError:
             pass  # thread_manager may not exist yet
 

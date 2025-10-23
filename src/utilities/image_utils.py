@@ -6,6 +6,7 @@ For droplet and experiment analysis in Droplet Wall Interaction Tool (DWIT).
 import glob
 import os
 from collections import Counter
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -19,57 +20,113 @@ from src.utilities.core_utils import get_logger
 logger = get_logger(__name__)
 
 
-def safe_imread(path: str, flags=cv2.IMREAD_COLOR):
+def safe_imread(path, flags=cv2.IMREAD_COLOR):
     """Robust image loader that handles Unicode paths on Windows.
 
-    Tries cv2.imread first. If that returns None (which can happen when
-    the underlying OpenCV build has trouble with Unicode paths on Windows),
-    falls back to reading the file bytes and decoding with cv2.imdecode.
-    """
-    try:
-        img = cv2.imread(path, flags)
-        if img is not None:
-            return img
-    except Exception:
-        # Continue to fallback
-        logger.debug("cv2.imread raised exception for path: %s", path)
+    Strategy:
+    1. Try reading raw bytes and decoding with cv2.imdecode (this avoids
+       OpenCV logging about failing to open paths on some Windows builds).
+    2. If that fails, try cv2.imread as a fallback.
+    3. If both fail, emit detailed diagnostics (exists, isfile, parent listing,
+       first bytes length, os.stat) to help debugging.
 
-    # Fallback: read raw bytes and decode
+    Accepts str or pathlib.Path for `path`.
+    """
+    p = Path(path)
+    path_str = str(p)
+    logger.debug("safe_imread called for path: %r", path_str)
+
+    # Try byte-read + imdecode first to avoid cv2.imread warnings on Windows
     try:
-        with open(path, "rb") as f:
+        with open(path_str, "rb") as f:
             data = f.read()
+        if not data:
+            logger.debug("safe_imread: file has zero bytes: %r", path_str)
+        else:
+            logger.debug("safe_imread: read %d bytes from %r", len(data), path_str)
+
         arr = np.frombuffer(data, dtype=np.uint8)
         img = cv2.imdecode(arr, flags)
-        return img
+        if img is not None:
+            logger.debug("safe_imread: cv2.imdecode succeeded for %r", path_str)
+            return img
+        else:
+            logger.debug("safe_imread: cv2.imdecode returned None for %r", path_str)
     except Exception as e:
-        logger.debug("safe_imread fallback failed for %s: %s", path, e)
+        logger.debug(
+            "safe_imread: byte-read/imdecode exception for %r: %s",
+            path_str,
+            e,
+        )
 
-        # Add extra diagnostics to help debug Unicode/path issues on Windows
+    # Fallback: try cv2.imread (may print OpenCV warnings)
+    try:
+        img = cv2.imread(path_str, flags)
+        if img is not None:
+            logger.debug("safe_imread: cv2.imread succeeded for %r", path_str)
+            return img
+        else:
+            logger.debug("safe_imread: cv2.imread returned None for %r", path_str)
+    except Exception as e:
+        logger.debug("safe_imread: cv2.imread exception for %r: %s", path_str, e)
+
+    # Diagnostics: gather filesystem info to help root-cause Unicode/permission issues
+    try:
+        exists = os.path.exists(path_str)
+        isfile = os.path.isfile(path_str)
+        logger.debug(
+            "safe_imread diagnostics: exists=%s, isfile=%s for %r",
+            exists,
+            isfile,
+            path_str,
+        )
+
+        parent = os.path.dirname(path_str) or "."
+        if os.path.isdir(parent):
+            try:
+                entries = os.listdir(parent)
+                entries_sample = [repr(e) for e in entries[:20]]
+                logger.debug(
+                    "Directory listing for %s (first %d): %s",
+                    parent,
+                    min(20, len(entries)),
+                    entries_sample,
+                )
+            except Exception as le:
+                logger.debug("Failed to list parent directory %s: %s", parent, le)
+
+        # File stat for permissions / size
         try:
-            exists = os.path.exists(path)
-            isfile = os.path.isfile(path)
+            st = os.stat(path_str)
             logger.debug(
-                "safe_imread diagnostics: exists=%s, isfile=%s", exists, isfile
+                "safe_imread stat for %r: size=%d, mode=%o",
+                path_str,
+                st.st_size,
+                st.st_mode,
             )
-            parent = os.path.dirname(path) or "."
-            if os.path.isdir(parent):
-                try:
-                    entries = os.listdir(parent)
-                    # Log first 20 entries with repr to show encoding differences
-                    entries_sample = [repr(e) for e in entries[:20]]
-                    logger.debug(
-                        "Directory listing for %s (first %d): %s",
-                        parent,
-                        min(20, len(entries)),
-                        entries_sample,
-                    )
-                except Exception as le:
-                    logger.debug("Failed to list parent directory %s: %s", parent, le)
-        except Exception:
-            # Best-effort diagnostics only
-            pass
+        except Exception as se:
+            logger.debug("safe_imread os.stat failed for %r: %s", path_str, se)
 
-        return None
+        # Try opening again in a minimal way to show the exception
+        try:
+            with open(path_str, "rb") as f:
+                head = f.read(64)
+            logger.debug(
+                "safe_imread: successfully re-opened %r, head bytes=%d",
+                path_str,
+                len(head),
+            )
+        except Exception as oe:
+            logger.debug(
+                "safe_imread: final open() attempt failed for %r: %s",
+                path_str,
+                oe,
+            )
+    except Exception:
+        # Best-effort diagnostics only
+        pass
+
+    return None
 
 
 def create_background_image(
