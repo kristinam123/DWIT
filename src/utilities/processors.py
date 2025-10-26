@@ -236,7 +236,7 @@ class ResultsProcessor:
 
         parameters = self.build_save_parameters()
         folder_name = os.path.basename(output_dir or "")
-        file_names = self._find_representative_file_names(output_dir)
+        _file_names = self._find_representative_file_names(output_dir)
 
         # Check if user requested stop without saving
         if self._user_requested_stop_no_save:
@@ -249,7 +249,7 @@ class ResultsProcessor:
                 result_lists,
                 parameters=parameters,
                 folder_name=folder_name,
-                file_names=file_names,
+                file_names=result_lists.get("filenames"),
             )
 
     def build_save_parameters(self) -> dict:

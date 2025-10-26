@@ -2083,11 +2083,72 @@ class AnalysisCore(QObject):
                         f"Added area_diameter_mm to result_images: {area_diameter_mm}"
                     )
 
+            # Structured packing mode: detect line contact
+            if self.analysis_mode == "structured_packing":
+                self._detect_line_contact(
+                    largest_contour, result_images, result_lists, q
+                )
+
         # Store visualization images
         result_images["contour"] = vis_img.copy()
         result_images["fallback"] = vis_img.copy()
 
         return cx, cy
+
+    def _detect_line_contact(self, largest_contour, result_images, result_lists, q):
+        """Detect if particle contour touches vertical lines in structured_packing mode.
+
+        Args:
+        ----
+            largest_contour: The contour of the particle
+            result_images: Dictionary to store contact detection flags
+            result_lists: Dictionary containing result lists
+            q: Current frame index
+
+        """
+        # Get vertical line coordinates from result_images or instance variables
+        vertical_left = result_images.get("vertical_left") or self._vertical_left
+        vertical_right = result_images.get("vertical_right") or self._vertical_right
+
+        if not vertical_left or not vertical_right or largest_contour is None:
+            result_images["left_contact_detected"] = False
+            result_images["right_contact_detected"] = False
+            return
+
+        # Extract x-coordinates of the vertical lines
+        x_left_line = int(vertical_left[0])  # x-coordinate of left line
+        x_right_line = int(vertical_right[0])  # x-coordinate of right line
+
+        # Find leftmost and rightmost points of the contour
+        leftmost_point = tuple(largest_contour[largest_contour[:, :, 0].argmin()][0])
+        rightmost_point = tuple(largest_contour[largest_contour[:, :, 0].argmax()][0])
+
+        leftmost_x = leftmost_point[0]
+        rightmost_x = rightmost_point[0]
+
+        # Check if leftmost point touches or crosses the left line
+        # Use a small tolerance (e.g., 2 pixels) to account for discretization
+        tolerance = 2
+        left_contact = leftmost_x <= (x_left_line + tolerance)
+
+        # Check if rightmost point touches or crosses the right line
+        right_contact = rightmost_x >= (x_right_line - tolerance)
+
+        # Store detection flags in result_images
+        result_images["left_contact_detected"] = left_contact
+        result_images["right_contact_detected"] = right_contact
+
+        # Log contact detection for debugging
+        if left_contact:
+            logger.debug(
+                f"Frame {q}: Left contact detected - "
+                f"leftmost_x={leftmost_x}, x_left_line={x_left_line}"
+            )
+        if right_contact:
+            logger.debug(
+                f"Frame {q}: Right contact detected - "
+                f"rightmost_x={rightmost_x}, x_right_line={x_right_line}"
+            )
 
     def _add_free_sedimentation_visualization(self, vis_img, largest_contour, cx, cy):
         """Add visualization elements for free sedimentation mode."""

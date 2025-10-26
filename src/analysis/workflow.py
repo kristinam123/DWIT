@@ -664,6 +664,17 @@ class ResultsAssembler:
         result_lists["rect_width_px"][index] = float(rect_w)
         result_lists["rect_height_px"][index] = float(rect_h)
 
+        # Calculate ellipse diameter in px
+        if "ellipse_diameter_px" not in result_lists:
+            result_lists["ellipse_diameter_px"] = []
+        while len(result_lists["ellipse_diameter_px"]) <= index:
+            result_lists["ellipse_diameter_px"].append(float("nan"))
+        if rect_w > 0 and rect_h > 0:
+            ellipse_diameter_px = math.sqrt(rect_w * rect_h)
+        else:
+            ellipse_diameter_px = float("nan")
+        result_lists["ellipse_diameter_px"][index] = ellipse_diameter_px
+
         # Convert to mm
         if self.pixel > 0:
             result_lists["rect_width_mm"][index] = float(rect_w / self.pixel)
