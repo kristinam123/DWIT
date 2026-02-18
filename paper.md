@@ -27,7 +27,7 @@ affiliations:
  - name: Institute for Bio- and Geosciences (IBG-2), Forschungszentrum Jülich GmbH, 52428 Jülich, Germany
    index: 2
 
-date: 02/18/2026
+date: 18 February 2026
 bibliography: paper.bib
 ---
 
@@ -48,6 +48,15 @@ Automated droplet experimentation and qualitative image analysis are essential i
 [@Mielke.2025]
 [@Potter.2026]
 Droplet Wall Interaction Tool is designed for researchers who require a flexible, reproducible, and extensible platform for laboratory automation and qualitative analysis.
+
+# State of the Field
+
+# Software design
+# Research impact statement
+# AI usage disclosure
+
+
+
 
 # Features and implementation
 
