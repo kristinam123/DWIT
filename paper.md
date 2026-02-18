@@ -15,10 +15,10 @@ authors:
   - name: Arif Rasim Can
     corresponding: false
     affiliation: 1
-- name: Andreas Jupke
-  orcide: 0000-0001-6551-5695
-  corresponding: false
-  affiliation: 1,2
+  - name: Andreas Jupke
+    orcide: 0000-0001-6551-5695
+    corresponding: false
+    affiliation: 1,2
 
 affiliations:
  - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University, 52074 Aachen, Germany
