@@ -26,7 +26,7 @@ bibliography: paper.bib
 ---
 
 # Summary
-
+TEst
 Droplet Wall Interaction Tool is a research-oriented, Python-based platform for qualitative image analysis of droplet experiments. Designed for academic and scientific workflows, it emphasizes reproducible batch processing and workflow automation for image analysis rather than hardware control. It integrates advanced image processing within a modern PySide6 (Qt for Python) interface and builds on NumPy, SciPy, pandas, and OpenCV [@NumPy; @SciPy; @Pandas; @OpenCV; @PySide6]. Its modular architecture and batch processing capabilities enable high-throughput, reproducible analyses and facilitate rapid development of new workflows for surface science and fluid dynamics research.
 
 # Statement of need
