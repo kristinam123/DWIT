@@ -6,22 +6,30 @@ tags:
   - image analysis
   - droplet experiments
   - scientific software
+  - droplet deformation
+  - droplet movement
   - contact angle measurement
 authors:
-  - name: Kristina Ulla Margareta Mielke
-    # orcid: 0000-0000-0000-0000
+  - name: Kristina Mielke
+    orcid: 0009-0009-9946-3315
     corresponding: true
     affiliation: 1
   - name: Arif Rasim Can
     corresponding: false
     affiliation: 1
+  - name: Andreas Jupke
+    orcid: 0000-0001-6551-5695
+    corresponding: false
+    affiliation: 1, 2
 
 affiliations:
- - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University
+ - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University, 52074 Aachen, Germany
    index: 1
    ror: https://ror.org/04xfq0f34
+- name: Institute for Bio- and Geosciences (IBG-2), Forschungszentrum Jülich GmbH, 52428 Jülich, Germany
+  index: 2
 
-date: 22 July 2025
+date: 18 February 2026
 bibliography: paper.bib
 ---
 
