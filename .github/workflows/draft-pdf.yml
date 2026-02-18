@@ -5,7 +5,10 @@ on:
       - paper.md
       - paper.bib
       - .github/workflows/draft-pdf.yml
+  workflow_dispatch:
 
+permissions:
+  contents: write
 jobs:
   paper:
     runs-on: ubuntu-latest
