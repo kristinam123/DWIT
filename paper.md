@@ -45,7 +45,8 @@ Automated droplet experimentation and qualitative image analysis are essential i
 - Visual and numeric interfaces for region-of-interest (ROI) selection and baseline adjustment.
 - Real-time logging and status indicators for transparency and troubleshooting.
 - Robust handling of open or incomplete contours through conservative estimation methods.
-
+[@Mielke.2025]
+[@Potter.2026]
 Droplet Wall Interaction Tool is designed for researchers who require a flexible, reproducible, and extensible platform for laboratory automation and qualitative analysis.
 
 # Features and implementation
