@@ -26,8 +26,8 @@ affiliations:
  - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University, 52074 Aachen, Germany
    index: 1
    ror: https://ror.org/04xfq0f34
-- name: Institute for Bio- and Geosciences (IBG-2), Forschungszentrum Jülich GmbH, 52428 Jülich, Germany
-  index: 2
+ - name: Institute for Bio- and Geosciences (IBG-2), Forschungszentrum Jülich GmbH, 52428 Jülich, Germany
+   index: 2
 
 date: 18 February 2026
 bibliography: paper.bib
