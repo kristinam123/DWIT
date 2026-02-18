@@ -13,14 +13,14 @@ authors:
   - name: Kristina Mielke
     orcid: 0009-0009-9946-3315
     corresponding: true
-    affiliation: 1
+    affiliation: "1"
   - name: Arif Rasim Can
     corresponding: false
-    affiliation: 1
+    affiliation: "1"
   - name: Andreas Jupke
     orcid: 0000-0001-6551-5695
     corresponding: false
-    affiliation: 1, 2
+    affiliation: "1, 2"
 
 affiliations:
  - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University, 52074 Aachen, Germany
