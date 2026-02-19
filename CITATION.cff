@@ -1,27 +1,24 @@
 cff-version: 1.2.0
-title: "Droplet Wall Interaction Tool"
+title: "Droplet Wall Interaction Tool: A Python based analysis tool for droplet movement during free movement and wall contact"
 message: "If you use this software, please cite it as below."
 authors:
-  - family-names: Mielke
-    given-names: Kristina Ulla Margareta
-    affiliation: Fluid Process Engineering (AVT.FVT), RWTH Aachen University
+  - name: Kristina Mielke
+    orcid: 0009-0009-9946-3315
     corresponding: true
-  - family-names: Can
-    given-names: Arif Rasim
-    affiliation: Fluid Process Engineering (AVT.FVT), RWTH Aachen University
+    affiliation: 1
+  - name: Arif Rasim Can
     corresponding: false
+    affiliation: 1
+  - name: Andreas Jupke
+    orcide: 0000-0001-6551-5695
+    corresponding: false
+    affiliation: 1,2
+
 affiliations:
-  - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University
-    ror: https://ror.org/04xfq0f34
-version: "1.2.5"
-date-released: "2025-07-23"
-repository-code: https://git.rwth-aachen.de/avt-fvt/public/droplet-wall-interaction-tool
-license: EPL-2.0
-keywords:
-  - Python
-  - laboratory automation
-  - image analysis
-  - droplet experiments
-  - scientific software
-  - contact angle measurement
+ - name: Fluid Process Engineering (AVT.FVT), RWTH Aachen University, 52074 Aachen, Germany
+   index: 1
+   ror: https://ror.org/04xfq0f34
+ - name: Institute for Bio- and Geosciences (IBG-2), Forschungszentrum Jülich GmbH, 52428 Jülich, Germany
+   index: 2
+
 doi: "XX.XXXXX/joss.XXXXXXX"  # Will be updated after acceptance
