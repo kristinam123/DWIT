@@ -16,7 +16,7 @@ authors:
     corresponding: false
     affiliation: 1
   - name: Andreas Jupke
-    orcide: 0000-0001-6551-5695
+    orcid: 0000-0001-6551-5695
     corresponding: false
     affiliation: 1,2
 
