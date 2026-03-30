@@ -302,9 +302,9 @@ If you use Droplet Wall Interaction Tool in your research, please cite it as:
 
 ```
 @software{droplet_wall_interaction_tool_2025,
-  title = {Droplet Wall Interaction Tool: A Python Platform for Automated Droplet Experiments and Qualitative Image Analysis},
-  author = {Mielke, Kristina Ulla Margareta and Can, Arif Rasim},
-  year = {2025},
+  title = {Droplet Wall Interaction Tool: A Python based analysis tool for droplet movement during free movement and wall contact},
+  author = {Mielke, Kristina; Can, Arif Rasim; Jupke, Andreas},
+  year = {2026},
   publisher = {Journal of Open Source Software},
   doi = {XX.XXXXX/joss.XXXXXXX},
   url = {https://doi.org/XX.XXXXX/joss.XXXXXXX}
