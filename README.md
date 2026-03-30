@@ -4,7 +4,7 @@
 [![JOSS](https://joss.theoj.org/papers/XX.XXXXX/joss.XXXXXXX/status.svg)](https://doi.org/XX.XXXXX/joss.XXXXXXX)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
-![License](https://img.shields.io/badge/license-EPL%202.0-blue)
+
 
 > Droplet Wall Interaction Tool (DWIT) is a research-oriented platform for qualitative image analysis of droplet experiments. Designed for academic and scientific workflows, it provides a reproducible, extensible, and user-friendly environment for analysis workflow automation and data analysis.
 
