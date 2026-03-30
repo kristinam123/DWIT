@@ -104,7 +104,7 @@ Alternatively run `dwit.py` from your IDE with the correct Python environment.
 
 1. Organize experiment images in a folder (see `tests/` for examples).
 2. Launch DWIT and navigate to the **Analysis** tab.
-3. Add or remove folders for batch processing as needed.
+3. Add or remove folders for batch processing as needed. Due to storage limits only small amounts of test images were selected, but the overall functionality can be proven with the batch tests.
 4. Adjust ROI, threshold, and baseline parameters.
 5. Use **Preview** for a preliminary check, or **Full Analysis** for comprehensive processing.
 6. Outputs: per-frame overlays are saved under `<your_folder>/`; a raw-results Excel file is saved in the same folder with the fixed name `results_raw.xlsx`.
